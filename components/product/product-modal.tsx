@@ -55,9 +55,9 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-b from-[#f5f0e8] to-[#e8e0d4] text-zinc-900 border-zinc-300">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle className="text-2xl font-bold text-zinc-900">
             {product.name}
           </DialogTitle>
         </DialogHeader>
@@ -91,22 +91,22 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
           {/* Product Info */}
           <div className="space-y-6">
             <div>
-              <p className="text-muted-foreground mb-4">{product.description}</p>
+              <p className="text-zinc-500 mb-4">{product.description}</p>
 
               <div className="flex items-center gap-4 mb-4">
-                <span className="text-3xl font-bold text-brand">{product.price.toFixed(2)}€</span>
-                <span className="text-muted-foreground">/{product.unit}</span>
+                <span className="text-3xl font-bold text-orange-500">{product.price.toFixed(2)}€</span>
+                <span className="text-zinc-400">/{product.unit}</span>
               </div>
             </div>
 
-            <Separator />
+            <Separator className="bg-zinc-200" />
 
             {/* Quantity and Packaging */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Quantité</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Quantité</label>
                 <Select value={quantity} onValueChange={setQuantity}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -120,9 +120,9 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Conditionnement</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Conditionnement</label>
                 <Select value={packaging} onValueChange={setPackaging}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -134,31 +134,31 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
               </div>
             </div>
 
-            <Separator />
+            <Separator className="bg-zinc-200" />
 
             {/* Features */}
             <div className="space-y-3">
-              <div className="flex items-center gap-3 text-sm">
-                <Truck className="h-4 w-4 text-brand" />
+              <div className="flex items-center gap-3 text-sm text-zinc-600">
+                <Truck className="h-4 w-4 text-orange-500" />
                 <span>Livraison sous 24h</span>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Shield className="h-4 w-4 text-brand" />
+              <div className="flex items-center gap-3 text-sm text-zinc-600">
+                <Shield className="h-4 w-4 text-orange-500" />
                 <span>Fraîcheur garantie</span>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Leaf className="h-4 w-4 text-brand" />
+              <div className="flex items-center gap-3 text-sm text-zinc-600">
+                <Leaf className="h-4 w-4 text-orange-500" />
                 <span>Produit local</span>
               </div>
             </div>
 
-            <Separator />
+            <Separator className="bg-zinc-200" />
 
             {/* Add to Cart */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-lg font-semibold">
+              <div className="flex items-center justify-between text-lg font-semibold text-zinc-900">
                 <span>Total:</span>
-                <span className="text-brand">
+                <span className="text-orange-500">
                   {(
                     product.price * Number.parseInt(quantity) +
                     (packaging === "premium" ? 0.5 * Number.parseInt(quantity) : 0)

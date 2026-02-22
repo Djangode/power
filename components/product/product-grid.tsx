@@ -6,8 +6,9 @@ import ProductCard from "./product-card"
 import ProductCardMobile from "./product-card-mobile"
 import CompositionMobileItem from "./composition-mobile-item"
 import CompositionModal from "./composition-modal"
+import CompositionBottomSheet from "./composition-bottom-sheet"
 import { ProductModalProvider, useProductModal } from "./product-modal-context"
-import Image from "next/image"
+import ImageWithFallback from "./image-with-fallback"
 
 interface Product {
   id: string
@@ -42,6 +43,15 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
   const [activeTab, setActiveTab] = useState("tout")
   const [search, setSearch] = useState("")
   const [selectedComposition, setSelectedComposition] = useState<Composition | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -117,7 +127,7 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
             placeholder="Rechercher un produit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-zinc-900/60 border border-white/10 rounded-2xl text-white placeholder:text-zinc-500 focus:outline-none focus:border-orange-500/50 transition-colors text-sm"
+            className="w-full pl-11 pr-4 py-3 bg-zinc-900 border border-zinc-700 rounded-2xl text-white placeholder:text-zinc-400 focus:outline-none focus:border-orange-500/50 transition-colors text-sm"
           />
         </div>
 
@@ -129,7 +139,7 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
               className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${
                 activeTab === tab.id
                   ? "bg-orange-500 text-white"
-                  : "bg-zinc-900/60 text-zinc-400 border border-white/5 hover:border-orange-500/30 hover:text-white"
+                  : "bg-zinc-900 text-white border border-zinc-700 hover:border-orange-500/50"
               }`}
             >
               {tab.label}
@@ -180,11 +190,11 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
             {filtered.compositions.map((comp) => (
               <div
                 key={comp.id}
-                className="group glassmorphism bg-zinc-900/40 border-white/5 rounded-[40px] overflow-hidden hover:border-orange-500/50 transition-all duration-500 h-full flex flex-col cursor-pointer"
+                className="group bg-zinc-950 border border-zinc-800 rounded-[40px] overflow-hidden hover:border-orange-500/50 transition-all duration-500 h-full flex flex-col cursor-pointer"
                 onClick={() => setSelectedComposition(comp)}
               >
                 <div className="relative aspect-square overflow-hidden bg-zinc-800">
-                  <Image
+                  <ImageWithFallback
                     src={comp.image || "/placeholder.svg"}
                     alt={comp.name}
                     fill
@@ -224,17 +234,31 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
       )}
 
       {selectedComposition && (
-        <CompositionModal
-          composition={selectedComposition}
-          isOpen={!!selectedComposition}
-          onClose={() => setSelectedComposition(null)}
-          availableProducts={products.map(p => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            category: p.category,
-          }))}
-        />
+        isMobile ? (
+          <CompositionBottomSheet
+            composition={selectedComposition}
+            isOpen={!!selectedComposition}
+            onClose={() => setSelectedComposition(null)}
+            availableProducts={products.map(p => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              category: p.category,
+            }))}
+          />
+        ) : (
+          <CompositionModal
+            composition={selectedComposition}
+            isOpen={!!selectedComposition}
+            onClose={() => setSelectedComposition(null)}
+            availableProducts={products.map(p => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              category: p.category,
+            }))}
+          />
+        )
       )}
     </>
   )

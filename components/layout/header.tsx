@@ -65,10 +65,36 @@ export default function Header() {
       <div className="fixed top-6 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
         <header className="w-full max-w-6xl flex items-center justify-between pointer-events-auto">
 
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 glassmorphism bg-black/60 px-5 py-3 rounded-full border border-white/10 hover:bg-black/80 transition-colors shadow-2xl backdrop-blur-xl">
-            <span className="text-xl font-extrabold text-white tracking-tight hidden sm:inline">Power<span className="text-orange-500">.</span></span>
-          </Link>
+          {/* Logo + Menu mobile */}
+          <div className="flex items-center space-x-1 glassmorphism bg-black/60 px-2 sm:px-5 py-1.5 sm:py-3 rounded-full border border-white/10 hover:bg-black/80 transition-colors shadow-2xl backdrop-blur-xl">
+            {/* Menu hamburger mobile - à gauche du logo */}
+            <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden rounded-full hover:bg-white/10 text-white h-9 w-9">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="glassmorphism bg-black/90 border-white/10 text-white rounded-2xl p-2 mt-2 backdrop-blur-xl w-56 shadow-2xl md:hidden">
+                <DropdownMenuItem onClick={() => { scrollToMarketplace(); setMobileMenuOpen(false) }} className="rounded-xl focus:bg-white/10 cursor-pointer">
+                  Boutique
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setCartOpen(true); setMobileMenuOpen(false) }} className="rounded-xl focus:bg-white/10 cursor-pointer">
+                  Panier
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="rounded-xl focus:bg-white/10 cursor-pointer">
+                  <Link href="/contact" onClick={() => setMobileMenuOpen(false)}>Contact</Link>
+                </DropdownMenuItem>
+                {!isLoggedIn && (
+                  <DropdownMenuItem asChild className="rounded-xl focus:bg-orange-500/20 text-orange-400 cursor-pointer">
+                    <Link href="/connexion" onClick={() => setMobileMenuOpen(false)}>Connexion</Link>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Link href="/">
+              <span className="text-xl font-extrabold text-white tracking-tight hidden sm:inline">Power<span className="text-orange-500">.</span></span>
+            </Link>
+          </div>
 
           {/* Nav centrale */}
           <nav className="hidden md:flex items-center glassmorphism bg-black/60 px-2 py-1.5 rounded-full border border-white/10 shadow-2xl backdrop-blur-xl">
@@ -143,30 +169,6 @@ export default function Header() {
               </Button>
             )}
 
-            {/* Mobile Menu */}
-            <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden rounded-full hover:bg-white/10 text-white">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="glassmorphism bg-black/90 border-white/10 text-white rounded-2xl p-2 mt-2 backdrop-blur-xl w-56 shadow-2xl md:hidden">
-                <DropdownMenuItem onClick={() => { scrollToMarketplace(); setMobileMenuOpen(false) }} className="rounded-xl focus:bg-white/10 cursor-pointer">
-                  Boutique
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setCartOpen(true); setMobileMenuOpen(false) }} className="rounded-xl focus:bg-white/10 cursor-pointer">
-                  Panier
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-xl focus:bg-white/10 cursor-pointer">
-                  <Link href="/contact" onClick={() => setMobileMenuOpen(false)}>Contact</Link>
-                </DropdownMenuItem>
-                {!isLoggedIn && (
-                  <DropdownMenuItem asChild className="rounded-xl focus:bg-orange-500/20 text-orange-400 cursor-pointer">
-                    <Link href="/connexion" onClick={() => setMobileMenuOpen(false)}>Connexion</Link>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
 
         </header>

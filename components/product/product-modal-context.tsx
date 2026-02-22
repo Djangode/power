@@ -1,7 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import ProductModal from "./product-modal"
+import ProductBottomSheet from "./product-bottom-sheet"
 
 interface Product {
   id: string
@@ -32,6 +33,15 @@ export function useProductModal() {
 export function ProductModalProvider({ children }: { children: ReactNode }) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
 
   const openProductModal = useCallback((product: Product) => {
     setSelectedProduct(product)
@@ -42,11 +52,19 @@ export function ProductModalProvider({ children }: { children: ReactNode }) {
     <ProductModalContext.Provider value={{ openProductModal }}>
       {children}
       {selectedProduct && (
-        <ProductModal
-          product={selectedProduct}
-          isOpen={isOpen}
-          onClose={() => setIsOpen(false)}
-        />
+        isMobile ? (
+          <ProductBottomSheet
+            product={selectedProduct}
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+          />
+        ) : (
+          <ProductModal
+            product={selectedProduct}
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+          />
+        )
       )}
     </ProductModalContext.Provider>
   )
