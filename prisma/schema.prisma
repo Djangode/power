@@ -1,0 +1,238 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  phone     String?
+  address   String?
+  city      String?
+  postalCode String?
+  clientType String @default("particulier")
+  billingType String @default("particulier")
+  role      String   @default("user") // "user", "admin", "cashier", "preparation", "delivery"
+  isActive  Boolean  @default(true)
+  salary    Float?
+  salaryType String?
+  hoursPerWeek Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+  cart      Cart?
+  preferences UserPreference?
+}
+
+model UserPreference {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotifications Boolean  @default(true)
+  smsNotifications   Boolean  @default(false)
+  orderUpdates       Boolean  @default(true)
+  promotions         Boolean  @default(false)
+  newsletter         Boolean  @default(false)
+  theme              String   @default("system")
+  language           String   @default("fr")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  slug        String    @unique
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  unit        String   // e.g "kg", "piece"
+  image       String?
+  inStock     Boolean  @default(true)
+  organic     Boolean  @default(false)
+  supplier    String?
+  origin      String?
+  purchasePrice Float?
+  margin      Float?
+  currentStock Int      @default(0)
+  minimumStock Int      @default(10)
+
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+}
+
+model Composition {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // e.g "jus", "soupe", "legumes-decoupes"
+  description String?
+  basePrice   Float
+  imageUrl    String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  status          String    @default("pending") // "pending", "validated", "processing", "shipped", "delivered", "cancelled"
+  total           Float
+  carrier         String?
+  trackingNumber  String?
+  deliveryDate    DateTime?
+  deliverySlot    String?
+  stripeSessionId String?
+
+  items     OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  compositionId String?
+  composition   Composition? @relation(fields: [compositionId], references: [id], onDelete: SetNull)
+
+  quantity  Int
+  priceAtPurchase Float // Capture price at the time of order
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?     @unique // Rattache a un User auth
+  user      User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String?    @unique // Pour les visiteurs non connectes
+  items     CartItem[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  compositionId String?
+  composition   Composition? @relation(fields: [compositionId], references: [id], onDelete: SetNull)
+
+  quantity  Int      @default(1)
+  customData Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId, compositionId])
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  excerpt     String?
+  author      String   @default("Equipe Power")
+  category    String?
+  imageUrl    String?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  content     String?
+  duration    String?
+  difficulty  String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Partner {
+  id        String   @id @default(cuid())
+  name      String
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeliverySlot {
+  id          String   @id @default(cuid())
+  date        DateTime
+  startTime   String   // e.g "09:00"
+  endTime     String   // e.g "12:00"
+  maxOrders   Int      @default(10)
+  currentOrders Int    @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date, startTime])
+}
