@@ -6,50 +6,55 @@ import { auth } from "@/auth"
 
 // Helper : Obtenir l'ID du panier actif (via User ou SessionId anonyme)
 export async function getCartId() {
-    const session = await auth()
-    const userId = session?.user?.id
-    const cookieStore = await cookies()
-    let sessionId = cookieStore.get("cart_session_id")?.value
+    try {
+        const session = await auth()
+        const userId = session?.user?.id
+        const cookieStore = await cookies()
+        let sessionId = cookieStore.get("cart_session_id")?.value
 
-    if (!userId && !sessionId) {
-        sessionId = crypto.randomUUID()
-        cookieStore.set("cart_session_id", sessionId, { maxAge: 60 * 60 * 24 * 30 }) // 30 jours
-    }
-
-    // Chercher panier existant
-    let cart = await prisma.cart.findFirst({
-        where: userId ? { userId } : { sessionId }
-    })
-
-    // Le créer s'il n'existe pas
-    if (!cart) {
-        cart = await prisma.cart.create({
-            data: userId ? { userId } : { sessionId }
-        })
-    }
-
-    // SI on a un user MAIS qu'un panier anonyme existait avant le login, on fusionne
-    if (userId && sessionId) {
-        try {
-            const anonymousCart = await prisma.cart.findFirst({ where: { sessionId } })
-            if (anonymousCart && anonymousCart.id !== cart.id) {
-                // Transfert des items un par un (pas de transaction, Neon HTTP)
-                const anonItems = await prisma.cartItem.findMany({ where: { cartId: anonymousCart.id } })
-                for (const item of anonItems) {
-                    await prisma.cartItem.update({
-                        where: { id: item.id },
-                        data: { cartId: cart.id }
-                    })
-                }
-                await prisma.cart.delete({ where: { id: anonymousCart.id } })
-            }
-        } catch (e) {
-            console.error("Cart merge failed:", e)
+        if (!userId && !sessionId) {
+            sessionId = crypto.randomUUID()
+            cookieStore.set("cart_session_id", sessionId, { maxAge: 60 * 60 * 24 * 30 }) // 30 jours
         }
-        cookieStore.delete("cart_session_id")
-    }
 
-    return cart.id
+        // Chercher panier existant
+        let cart = await prisma.cart.findFirst({
+            where: userId ? { userId } : { sessionId }
+        })
+
+        // Le créer s'il n'existe pas
+        if (!cart) {
+            cart = await prisma.cart.create({
+                data: userId ? { userId } : { sessionId }
+            })
+        }
+
+        // SI on a un user MAIS qu'un panier anonyme existait avant le login, on fusionne
+        if (userId && sessionId) {
+            try {
+                const anonymousCart = await prisma.cart.findFirst({ where: { sessionId } })
+                if (anonymousCart && anonymousCart.id !== cart.id) {
+                    // Transfert des items un par un (pas de transaction, Neon HTTP)
+                    const anonItems = await prisma.cartItem.findMany({ where: { cartId: anonymousCart.id } })
+                    for (const item of anonItems) {
+                        await prisma.cartItem.update({
+                            where: { id: item.id },
+                            data: { cartId: cart.id }
+                        })
+                    }
+                    await prisma.cart.delete({ where: { id: anonymousCart.id } })
+                }
+            } catch (e) {
+                console.error("Cart merge failed:", e)
+            }
+            cookieStore.delete("cart_session_id")
+        }
+
+        return cart.id
+    } catch (error) {
+        console.error("Error getting cart ID:", error)
+        throw new Error("Impossible d'accéder au panier")
+    }
 }
 
 // Action : Ajouter au Panier

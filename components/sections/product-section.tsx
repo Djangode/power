@@ -38,13 +38,13 @@ export default async function ProductSection() {
   const categories = [...new Set(products.map(p => p.category.name))]
 
   return (
-    <section id="fruits" className="py-20 px-4 w-full">
+    <section id="fruits" className="py-20 px-4 w-full bg-gradient-to-b from-[#f5f0e8] via-[#e8e0d4] to-[#d4cbbe]">
       <div className="w-full max-w-none px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-5xl font-black mb-4 text-white tracking-tight">
+          <h2 className="text-3xl md:text-5xl font-black mb-4 text-zinc-900 tracking-tight">
             Notre <span className="text-orange-500">Marketplace</span>
           </h2>
-          <p className="text-zinc-400 max-w-2xl mx-auto text-lg italic font-medium">
+          <p className="text-zinc-600 max-w-2xl mx-auto text-lg italic font-medium">
             Fruits, légumes, jus pressés à froid, soupes et découpés frais.
           </p>
         </div>

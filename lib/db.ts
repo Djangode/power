@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaNeonHttp } from '@prisma/adapter-neon'
+import '@/lib/env'
 
 const databaseUrl = process.env.DATABASE_URL || ''
 
@@ -15,6 +16,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function makePrisma(): PrismaClient {
     if (!cleanUrl || cleanUrl.includes('xxx') || cleanUrl.includes('placeholder')) {
+        console.warn('⚠️  DATABASE_URL non configuré — mode mock activé. Les données ne seront pas persistées.')
         // Mode sans DB : retourne un mock qui ne crashe pas
         return new Proxy({}, {
             get(_, prop) {

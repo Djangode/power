@@ -20,6 +20,7 @@ interface Product {
 export default function ProductCardMobile({ product, onViewDetails }: { product: Product; onViewDetails?: () => void }) {
   const [quantity, setQuantity] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -64,11 +65,12 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
     >
       <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800">
         <Image
-          src={product.image || "/placeholder-product.jpg"}
+          src={imgError ? "/placeholder.svg" : (product.image || "/placeholder.svg")}
           alt={product.name}
           fill
           sizes="(max-width: 768px) 100vw, 300px"
           className="object-cover"
+          onError={() => setImgError(true)}
         />
         {product.organic && (
           <div className="absolute top-0.5 left-0.5">

@@ -1,6 +1,6 @@
 "use client"
 
-import Image from "next/image"
+import ImageWithFallback from "./image-with-fallback"
 import { ChefHat } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -19,11 +19,13 @@ export default function CompositionMobileItem({ composition, onCompose }: { comp
       onClick={onCompose}
     >
       <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800">
-        {composition.imageUrl ? (
-          <Image src={composition.imageUrl} alt={composition.name} fill sizes="(max-width: 768px) 100vw, 300px" className="object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs font-bold">IMG</div>
-        )}
+        <ImageWithFallback
+          src={composition.imageUrl || "/placeholder.svg"}
+          alt={composition.name}
+          fill
+          sizes="(max-width: 768px) 100vw, 300px"
+          className="object-cover"
+        />
       </div>
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-bold text-white truncate">{composition.name}</h3>

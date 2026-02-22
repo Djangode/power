@@ -32,18 +32,28 @@ export async function POST(req: Request) {
             const { orderId, userId } = session.metadata || {}
 
             if (orderId && userId) {
+                // Vérifier idempotence — ne pas retraiter une commande déjà validée
+                const existingOrder = await prisma.order.findUnique({
+                    where: { id: orderId }
+                })
+
+                if (!existingOrder || existingOrder.status === "validated") {
+                    return NextResponse.json({ received: true })
+                }
+
                 // Valider la commande
                 const order = await prisma.order.update({
                     where: { id: orderId },
                     data: { status: "validated" }
                 })
 
-                // Vider le panier
+                // Vider le panier — items un par un (Neon HTTP pas de deleteMany)
                 const userCart = await prisma.cart.findUnique({ where: { userId } })
                 if (userCart) {
-                    await prisma.cartItem.deleteMany({
-                        where: { cartId: userCart.id }
-                    })
+                    const cartItems = await prisma.cartItem.findMany({ where: { cartId: userCart.id } })
+                    for (const item of cartItems) {
+                        await prisma.cartItem.delete({ where: { id: item.id } })
+                    }
                 }
 
                 // Récupérer l'email de l'user pour notification

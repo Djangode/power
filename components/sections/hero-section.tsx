@@ -75,12 +75,14 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 1 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce z-10 cursor-pointer"
+        className="absolute bottom-6 sm:bottom-10 inset-x-0 flex justify-center z-10"
         onClick={scrollToMarketplace}
       >
-        <span className="text-zinc-500 text-xs mb-3 uppercase tracking-[0.2em] font-medium">Scroll</span>
-        <div className="w-12 h-12 rounded-full glassmorphism flex items-center justify-center border border-white/20 hover:bg-white/10 transition-colors">
-          <ArrowDown className="w-5 h-5 text-orange-500" />
+        <div className="flex flex-col items-center animate-bounce cursor-pointer">
+          <span className="text-zinc-500 text-[10px] sm:text-xs mb-2 sm:mb-3 uppercase tracking-[0.2em] font-medium">Scroll</span>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full glassmorphism flex items-center justify-center border border-white/20 hover:bg-white/10 transition-colors">
+            <ArrowDown className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+          </div>
         </div>
       </motion.div>
 

@@ -29,6 +29,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, onViewDetails }: ProductCardProps) {
   const [quantity, setQuantity] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   const handleAdd = async () => {
     setLoading(true)
@@ -65,15 +66,16 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
   }
 
   return (
-    <Card className="group glassmorphism bg-zinc-900/40 border-white/5 rounded-[40px] overflow-hidden hover:border-orange-500/50 transition-all duration-500 h-full flex flex-col">
+    <Card className="group bg-zinc-950 border-zinc-800 rounded-[40px] overflow-hidden hover:border-orange-500/50 transition-all duration-500 h-full flex flex-col">
       <CardContent className="p-0 relative">
         <div className="relative aspect-square overflow-hidden bg-zinc-800">
           <Image
-            src={product.image || "/placeholder-product.jpg"}
+            src={imgError ? "/placeholder.svg" : (product.image || "/placeholder.svg")}
             alt={product.name}
             fill
             sizes="(max-width: 768px) 100vw, 300px"
             className="object-cover group-hover:scale-110 transition-transform duration-700"
+            onError={() => setImgError(true)}
           />
 
           <div className="absolute top-6 left-6 flex flex-col gap-2">

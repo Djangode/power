@@ -70,18 +70,23 @@ export async function updateUserProfile(data: z.infer<typeof updateProfileSchema
 }
 
 export async function getUserOrders() {
-    const session = await auth()
-    if (!session?.user?.id) return { success: false, error: "Non autorisé" }
+    try {
+        const session = await auth()
+        if (!session?.user?.id) return { success: false, error: "Non autorisé", data: [] }
 
-    const orders = await prisma.order.findMany({
-        where: { userId: session.user.id },
-        include: {
-            items: {
-                include: { product: true }
-            }
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+        const orders = await prisma.order.findMany({
+            where: { userId: session.user.id },
+            include: {
+                items: {
+                    include: { product: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
 
-    return { success: true, data: orders }
+        return { success: true, data: orders }
+    } catch (error) {
+        console.error("Error fetching user orders:", error)
+        return { success: false, error: "Erreur lors du chargement des commandes", data: [] }
+    }
 }
