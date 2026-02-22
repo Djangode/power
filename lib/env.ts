@@ -20,9 +20,10 @@ export function validateEnv() {
   const isProduction = process.env.NODE_ENV === "production"
 
   if (isProduction) {
-    throw new Error(
-      `Variables d'environnement manquantes en production :\n${missing.map(m => `  - ${m}`).join("\n")}`
+    console.warn(
+      `⚠️  Variables d'environnement manquantes en production :\n${missing.map(m => `  - ${m}`).join("\n")}`
     )
+    return
   }
 
   console.warn(
