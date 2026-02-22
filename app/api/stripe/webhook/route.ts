@@ -4,13 +4,16 @@ import Stripe from "stripe"
 import { prisma } from "@/lib/db"
 import { sendOrderConfirmation } from "@/lib/email"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2025-01-27.acacia" as any,
-})
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+function getStripe() {
+    return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: "2025-01-27.acacia" as any,
+    })
+}
 
 export async function POST(req: Request) {
+    const stripe = getStripe()
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+
     try {
         const body = await req.text()
         const headersList = await headers()
