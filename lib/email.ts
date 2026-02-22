@@ -1,12 +1,14 @@
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const FROM_EMAIL = "Power <noreply@power-primeur.com>"
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 export async function sendOrderConfirmation(email: string, orderId: string, total: number) {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: `Confirmation de commande #${orderId.slice(-6).toUpperCase()}`,
@@ -28,7 +30,7 @@ export async function sendOrderConfirmation(email: string, orderId: string, tota
 
 export async function sendContactNotification(name: string, email: string, subject: string, message: string) {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM_EMAIL,
       to: "contact@power-primeur.com",
       subject: `Nouveau message de contact: ${subject || "Sans objet"}`,
@@ -51,7 +53,7 @@ export async function sendContactNotification(name: string, email: string, subje
 
 export async function sendWelcomeEmail(email: string, firstName: string) {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Bienvenue chez Power !",
@@ -84,7 +86,7 @@ export async function sendOrderStatusUpdate(email: string, orderId: string, stat
   const statusLabel = statusLabels[status] || status
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: `Votre commande #${orderId.slice(-6).toUpperCase()} est ${statusLabel}`,
