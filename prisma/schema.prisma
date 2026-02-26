@@ -106,8 +106,17 @@ model Order {
   total           Float
   carrier         String?
   trackingNumber  String?
+  deliveryMethod  String?   // "livraison" or "retrait"
   deliveryDate    DateTime?
   deliverySlot    String?
+  deliveryAddress String?
+  deliveryCity    String?
+  deliveryPostalCode String?
+  deliveryFee     Float     @default(0)
+  pickupCode      String?   // Code for click & collect
+  invoiceNumber   String?   @unique
+  promoCode       String?
+  discount        Float     @default(0)
   stripeSessionId String?
 
   items     OrderItem[]
@@ -221,6 +230,20 @@ model ContactMessage {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PromoCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        String    // "percentage" or "fixed"
+  value       Float     // e.g. 10 for 10% or 5 for 5€
+  minOrder    Float     @default(0)
+  maxUses     Int       @default(0) // 0 = unlimited
+  currentUses Int       @default(0)
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model DeliverySlot {

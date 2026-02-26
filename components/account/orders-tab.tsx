@@ -4,54 +4,45 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { FileText, MessageSquare, Eye, Loader2, ShoppingBag } from "lucide-react"
+import { FileText, Eye, Loader2, ShoppingBag, Download, RotateCcw } from "lucide-react"
 import { getUserOrders } from "@/app/actions/account"
 import { toast } from "sonner"
 import Link from "next/link"
 
 interface OrderItem {
   id: string
-  product_id: string | null
-  composition_id: string | null
-  quantity_ordered: number
-  unit_price: number
-  total_price: number
-  products?: {
-    name: string
-    unit: string
-  } | null
-  compositions?: {
-    name: string
-  } | null
+  quantity: number
+  priceAtPurchase: number
+  product?: { name: string; unit: string } | null
+  composition?: { name: string } | null
 }
 
 interface Order {
   id: string
-  order_number: string
-  created_at: string
+  orderNumber: string
+  createdAt: string
   status: string
   total: number
-  order_items: OrderItem[]
+  deliveryMethod: string | null
+  invoiceNumber: string | null
+  items: OrderItem[]
 }
 
 const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "delivered":
-      return <Badge className="bg-orange-500 text-white border-0 font-black uppercase italic text-[10px] tracking-widest px-3 py-1">Livrée</Badge>
-    case "delivering":
-      return <Badge className="bg-orange-500/40 text-white border-white/10 font-black uppercase italic text-[10px] tracking-widest px-3 py-1">En livraison</Badge>
-    case "validated":
-      return <Badge className="bg-zinc-800 text-orange-500 border-orange-500/20 border font-black uppercase italic text-[10px] tracking-widest px-3 py-1">Validée</Badge>
-    case "preparation":
-      return <Badge className="bg-zinc-900 text-zinc-400 border-white/5 border font-black uppercase italic text-[10px] tracking-widest px-3 py-1">En préparation</Badge>
-    case "pending":
-      return <Badge className="bg-zinc-900 text-orange-500/60 border-orange-500/10 border font-black uppercase italic text-[10px] tracking-widest px-3 py-1 text-center">En attente de paiement</Badge>
-    case "cancelled":
-      return <Badge className="bg-red-500/20 text-red-500 border-red-500/20 border font-black uppercase italic text-[10px] tracking-widest px-3 py-1">Annulée</Badge>
-    default:
-      return <Badge variant="secondary" className="font-black uppercase italic text-[10px] tracking-widest px-3 py-1">Inconnue</Badge>
+  const configs: Record<string, { label: string; className: string }> = {
+    delivered: { label: "Livrée", className: "bg-green-500/20 text-green-400 border-green-500/20" },
+    shipped: { label: "En livraison", className: "bg-purple-500/20 text-purple-400 border-purple-500/20" },
+    validated: { label: "Validée", className: "bg-orange-500/20 text-orange-400 border-orange-500/20" },
+    processing: { label: "En préparation", className: "bg-blue-500/20 text-blue-400 border-blue-500/20" },
+    pending: { label: "En attente", className: "bg-zinc-800 text-orange-500/60 border-orange-500/10" },
+    cancelled: { label: "Annulée", className: "bg-red-500/20 text-red-400 border-red-500/20" },
   }
+  const config = configs[status] || { label: status, className: "bg-zinc-800 text-zinc-400" }
+  return (
+    <Badge className={`${config.className} border font-black uppercase italic text-[10px] tracking-widest px-3 py-1`}>
+      {config.label}
+    </Badge>
+  )
 }
 
 const formatDate = (dateString: string) => {
@@ -79,20 +70,21 @@ export default function OrdersTab() {
       if (res.success && res.data) {
         const transformedOrders = res.data.map((o: any) => ({
           id: o.id,
-          order_number: `CMD-${o.id.slice(-6).toUpperCase()}`,
-          created_at: o.createdAt,
+          orderNumber: `CMD-${o.id.slice(-6).toUpperCase()}`,
+          createdAt: o.createdAt,
           status: o.status,
           total: o.total,
-          order_items: (o.items || []).map((i: any) => ({
+          deliveryMethod: o.deliveryMethod || null,
+          invoiceNumber: o.invoiceNumber || null,
+          items: (o.items || []).map((i: any) => ({
             id: i.id,
-            quantity_ordered: i.quantity,
-            unit_price: i.priceAtPurchase,
-            total_price: i.quantity * i.priceAtPurchase,
-            products: i.product || null,
-            compositions: i.composition || null
+            quantity: i.quantity,
+            priceAtPurchase: i.priceAtPurchase,
+            product: i.product || null,
+            composition: i.composition || null,
           }))
         }))
-        setOrders(transformedOrders as Order[])
+        setOrders(transformedOrders)
       } else {
         setOrders([])
       }
@@ -103,15 +95,6 @@ export default function OrdersTab() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const getOrderItemsList = (order: Order) => {
-    return order.order_items.map(item => {
-      const name = item.products?.name || item.compositions?.name || 'Article inconnu'
-      const unit = item.products?.unit || ''
-      const quantity = item.quantity_ordered
-      return { name, unit, quantity }
-    })
   }
 
   if (loading) {
@@ -158,11 +141,11 @@ export default function OrdersTab() {
                 <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-8 mb-8">
                   <div className="flex items-center gap-6">
                     <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center font-black italic text-orange-500 text-xs text-center leading-tight">
-                      {new Date(order.created_at).getDate()}<br />{new Date(order.created_at).toLocaleString('fr-FR', { month: 'short' }).toUpperCase()}
+                      {new Date(order.createdAt).getDate()}<br />{new Date(order.createdAt).toLocaleString('fr-FR', { month: 'short' }).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black uppercase italic text-white">{order.order_number}</h3>
-                      <p className="text-zinc-500 font-medium">{formatDate(order.created_at)}</p>
+                      <h3 className="text-2xl font-black uppercase italic text-white">{order.orderNumber}</h3>
+                      <p className="text-zinc-500 font-medium">{formatDate(order.createdAt)}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between lg:justify-end gap-10">
@@ -177,31 +160,39 @@ export default function OrdersTab() {
                 <div className="bg-white/5 rounded-3xl p-6 mb-8">
                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-500/60 mb-4">Articles du Colis Power</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {getOrderItemsList(order).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-zinc-300 font-bold text-sm bg-black/40 p-3 rounded-xl border border-white/5">
-                        <span>{item.name}</span>
-                        <span className="text-orange-500 italic">x{item.quantity} {item.unit}</span>
-                      </div>
-                    ))}
+                    {order.items.map((item) => {
+                      const name = item.product?.name || item.composition?.name || 'Article inconnu'
+                      const unit = item.product?.unit || ''
+                      return (
+                        <div key={item.id} className="flex items-center justify-between text-zinc-300 font-bold text-sm bg-black/40 p-3 rounded-xl border border-white/5">
+                          <span>{name}</span>
+                          <span className="text-orange-500 italic">x{item.quantity} {unit}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
-                  <Button variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
-                    <Eye className="h-4 w-4 text-orange-500" /> Suivi Colis
+                  <Button asChild variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
+                    <Link href={`/commandes/${order.id}`}>
+                      <Eye className="h-4 w-4 text-orange-500" /> Suivi Commande
+                    </Link>
                   </Button>
 
-                  {order.status === "validated" || order.status === "delivered" ? (
-                    <Button variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
-                      <FileText className="h-4 w-4 text-orange-500" /> Facture
-                    </Button>
-                  ) : null}
-
-                  {order.status === "delivered" && (
-                    <Button variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
-                      <MessageSquare className="h-4 w-4 text-orange-500" /> Assistance
+                  {(order.status === "validated" || order.status === "delivered" || order.status === "shipped" || order.status === "processing") && (
+                    <Button asChild variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
+                      <a href={`/api/invoices/${order.id}`} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4 text-orange-500" /> Facture
+                      </a>
                     </Button>
                   )}
+
+                  <Button asChild variant="outline" className="rounded-full border-white/10 text-white hover:bg-white/5 font-bold uppercase italic text-xs h-12 px-6 gap-2">
+                    <Link href="/#marketplace">
+                      <RotateCcw className="h-4 w-4 text-orange-500" /> Commander à nouveau
+                    </Link>
+                  </Button>
                 </div>
               </div>
             ))}

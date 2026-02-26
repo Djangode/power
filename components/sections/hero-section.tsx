@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowDown } from "lucide-react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { useRef } from "react"
+import Image from "next/image"
 
 interface HeroSectionProps {
   title?: string;
@@ -20,6 +21,7 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
   // Parallax effects
   const yText = useTransform(scrollYProgress, [0, 1], ["0%", "50%"])
   const opacityText = useTransform(scrollYProgress, [0, 1], [1, 0])
+  const scaleImage = useTransform(scrollYProgress, [0, 1], [1, 1.15])
 
   const scrollToMarketplace = () => {
     const marketplaceSection = document.getElementById("marketplace")
@@ -29,9 +31,21 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
   }
 
   return (
-    <section ref={ref} className="relative w-full h-screen flex flex-col justify-center items-center bg-black text-white overflow-hidden">
-      {/* Background patterns or gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-950/20 via-black to-black opacity-90" />
+    <section ref={ref} className="relative w-full h-screen flex flex-col justify-center items-center text-white overflow-hidden">
+      {/* Background Image */}
+      <motion.div style={{ scale: scaleImage }} className="absolute inset-0">
+        <Image
+          src="/power champ hero.png"
+          alt="Power - Produits frais"
+          fill
+          priority
+          className="object-cover"
+          sizes="100vw"
+        />
+      </motion.div>
+
+      {/* Dark overlay for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />
 
       <motion.div
         style={{ y: yText, opacity: opacityText }}
@@ -42,7 +56,7 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-5xl md:text-8xl font-black mb-6 tracking-tight leading-tight"
+            className="text-5xl md:text-8xl font-black mb-6 tracking-tight leading-tight drop-shadow-[0_2px_20px_rgba(0,0,0,0.5)]"
           >
             {title || <>Le Primeur <br /><span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]">Moderne</span></>}
           </motion.h1>
@@ -50,7 +64,7 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-            className="text-lg md:text-2xl text-zinc-400 mb-12 max-w-2xl mx-auto font-light"
+            className="text-lg md:text-2xl text-white/80 mb-12 max-w-2xl mx-auto font-light drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]"
           >
             {subtitle || "Le primeur digital avec des produits extra-frais et locaux, sélectionnés chaque matin."}
           </motion.p>
@@ -79,30 +93,12 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
         onClick={scrollToMarketplace}
       >
         <div className="flex flex-col items-center animate-bounce cursor-pointer">
-          <span className="text-zinc-500 text-[10px] sm:text-xs mb-2 sm:mb-3 uppercase tracking-[0.2em] font-medium">Scroll</span>
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full glassmorphism flex items-center justify-center border border-white/20 hover:bg-white/10 transition-colors">
+          <span className="text-white/60 text-[10px] sm:text-xs mb-2 sm:mb-3 uppercase tracking-[0.2em] font-medium drop-shadow-md">Scroll</span>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/40 transition-colors">
             <ArrowDown className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
           </div>
         </div>
       </motion.div>
-
-      {/* Decorative Orbs */}
-      <motion.div
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.1, 0.15, 0.1]
-        }}
-        transition={{ duration: 8, repeat: Infinity, repeatType: "reverse" }}
-        className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/20 rounded-full blur-[120px] pointer-events-none"
-      />
-      <motion.div
-        animate={{
-          scale: [1, 1.5, 1],
-          opacity: [0.05, 0.1, 0.05]
-        }}
-        transition={{ duration: 10, repeat: Infinity, repeatType: "reverse", delay: 2 }}
-        className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-white/10 rounded-full blur-[150px] pointer-events-none"
-      />
     </section>
   )
 }

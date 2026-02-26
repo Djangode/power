@@ -9,6 +9,10 @@ function getStripe() {
     })
 }
 
+function generatePickupCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase()
+}
+
 export async function POST(req: NextRequest) {
     const stripe = getStripe()
     try {
@@ -16,6 +20,9 @@ export async function POST(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
+
+        const body = await req.json().catch(() => ({}))
+        const { deliveryMethod, deliveryDate, deliveryTime, deliveryAddress, deliveryCity, deliveryPostalCode, promoCode } = body
 
         // Récupération du panier dynamique de l'utilisateur
         const cartItems = await prisma.cartItem.findMany({
@@ -31,10 +38,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Calculer le total et préparer les items pour la commande
-        let total = 0
+        let subtotal = 0
         const orderItemsData = cartItems.map(item => {
             const price = item.productId ? item.product!.price : item.composition!.basePrice
-            total += price * item.quantity
+            subtotal += price * item.quantity
             return {
                 productId: item.productId || null,
                 compositionId: item.compositionId || null,
@@ -43,12 +50,72 @@ export async function POST(req: NextRequest) {
             }
         })
 
-        // Création de la commande "pending"
+        // Validation et application du code promo
+        let promoDiscount = 0
+        let validPromoCode: string | null = null
+
+        if (promoCode) {
+            const promo = await prisma.promoCode.findUnique({
+                where: { code: promoCode.toUpperCase().trim() }
+            })
+
+            if (promo && promo.isActive
+                && (!promo.expiresAt || new Date(promo.expiresAt) >= new Date())
+                && (promo.maxUses === 0 || promo.currentUses < promo.maxUses)
+                && subtotal >= promo.minOrder
+            ) {
+                if (promo.type === "percentage") {
+                    promoDiscount = subtotal * (promo.value / 100)
+                } else {
+                    promoDiscount = promo.value
+                }
+                promoDiscount = Math.min(promoDiscount, subtotal)
+                promoDiscount = Math.round(promoDiscount * 100) / 100
+                validPromoCode = promo.code
+
+                // Incrémenter le compteur d'utilisation
+                await prisma.promoCode.update({
+                    where: { id: promo.id },
+                    data: { currentUses: promo.currentUses + 1 }
+                })
+            }
+        }
+
+        // Calcul frais de livraison
+        const isDelivery = deliveryMethod === "livraison"
+        const deliveryFee = isDelivery ? (subtotal >= 30 ? 0 : 4.90) : 0
+        const total = subtotal - promoDiscount + deliveryFee
+
+        // Récupérer l'adresse utilisateur si pas fournie
+        let finalAddress = deliveryAddress
+        let finalCity = deliveryCity
+        let finalPostalCode = deliveryPostalCode
+
+        if (isDelivery && !finalAddress) {
+            const user = await prisma.user.findUnique({ where: { id: session.user.id } })
+            if (user) {
+                finalAddress = user.address
+                finalCity = user.city
+                finalPostalCode = user.postalCode
+            }
+        }
+
+        // Création de la commande "pending" avec toutes les infos
         const order = await prisma.order.create({
             data: {
                 userId: session.user.id,
                 total,
                 status: "pending",
+                deliveryMethod: deliveryMethod || "livraison",
+                deliveryFee,
+                deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+                deliverySlot: deliveryTime || null,
+                deliveryAddress: isDelivery ? finalAddress : null,
+                deliveryCity: isDelivery ? finalCity : null,
+                deliveryPostalCode: isDelivery ? finalPostalCode : null,
+                pickupCode: deliveryMethod === "retrait" ? generatePickupCode() : null,
+                promoCode: validPromoCode,
+                discount: promoDiscount,
                 items: {
                     create: orderItemsData
                 }
@@ -69,23 +136,54 @@ export async function POST(req: NextRequest) {
                         name: name,
                         images: image ? [image] : undefined,
                     },
-                    unit_amount: Math.round(price * 100), // Stripe attend des centimes
+                    unit_amount: Math.round(price * 100),
                 }
             }
         })
 
+        // Ajouter les frais de livraison comme ligne Stripe si > 0
+        if (deliveryFee > 0) {
+            line_items.push({
+                quantity: 1,
+                price_data: {
+                    currency: 'eur',
+                    product_data: { name: "Frais de livraison" },
+                    unit_amount: Math.round(deliveryFee * 100),
+                }
+            })
+        }
+
         const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
+        // Créer un coupon Stripe si réduction appliquée
+        let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined
+        if (promoDiscount > 0) {
+            const coupon = await stripe.coupons.create({
+                amount_off: Math.round(promoDiscount * 100),
+                currency: 'eur',
+                duration: 'once',
+                name: `Promo ${validPromoCode}`,
+            })
+            discounts = [{ coupon: coupon.id }]
+        }
 
         const checkoutSession = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items,
             mode: 'payment',
+            ...(discounts ? { discounts } : {}),
             success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/panier`,
             metadata: {
                 orderId: order.id,
                 userId: session.user.id
             }
+        })
+
+        // Sauvegarder le sessionId Stripe dans la commande
+        await prisma.order.update({
+            where: { id: order.id },
+            data: { stripeSessionId: checkoutSession.id }
         })
 
         return NextResponse.json({ url: checkoutSession.url })

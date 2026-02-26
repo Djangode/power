@@ -9,13 +9,23 @@ import DeliveryCalendar from "@/components/delivery/delivery-calendar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import { getCartItems } from "@/app/actions/cart"
-import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock } from "lucide-react"
+import { getUserProfile } from "@/app/actions/account"
+import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock, User, Tag, X } from "lucide-react"
 import { toast } from "sonner"
 
 interface DeliveryInfo {
   date: string
   time: string
+}
+
+interface PromoResult {
+  code: string
+  type: string
+  value: number
+  discount: number
+  label: string
 }
 
 type DeliveryMethod = "livraison" | "retrait"
@@ -27,21 +37,42 @@ export default function CommandePage() {
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryInfo | null>(null)
   const [isCheckingOut, setIsCheckingOut] = useState(false)
 
+  // Promo code
+  const [promoInput, setPromoInput] = useState("")
+  const [promoLoading, setPromoLoading] = useState(false)
+  const [appliedPromo, setAppliedPromo] = useState<PromoResult | null>(null)
+
+  // Address fields
+  const [address, setAddress] = useState("")
+  const [city, setCity] = useState("")
+  const [postalCode, setPostalCode] = useState("")
+  const [phone, setPhone] = useState("")
+
   useEffect(() => {
-    async function loadCart() {
+    async function loadData() {
       try {
         setLoading(true)
-        const res = await getCartItems()
-        if (res.success && res.data) {
-          setItems(res.data)
+        const [cartRes, profileRes] = await Promise.all([
+          getCartItems(),
+          getUserProfile()
+        ])
+        if (cartRes.success && cartRes.data) {
+          setItems(cartRes.data)
+        }
+        if (profileRes.success && profileRes.data) {
+          const u = profileRes.data
+          setAddress(u.address || "")
+          setCity(u.city || "")
+          setPostalCode(u.postalCode || "")
+          setPhone(u.phone || "")
         }
       } catch (error) {
-        console.error("Erreur chargement panier:", error)
+        console.error("Erreur chargement:", error)
       } finally {
         setLoading(false)
       }
     }
-    loadCart()
+    loadData()
   }, [])
 
   const getItemData = (item: any) => {
@@ -76,12 +107,40 @@ export default function CommandePage() {
 
   const processedItems = items.map(getItemData).filter(Boolean) as NonNullable<ReturnType<typeof getItemData>>[]
   const subtotal = processedItems.reduce((sum, item) => sum + item.total, 0)
-  const deliveryFee = deliveryMethod === "retrait" ? 0 : (subtotal > 30 ? 0 : 4.9)
-  const total = subtotal + deliveryFee
+  const deliveryFee = deliveryMethod === "retrait" ? 0 : (subtotal >= 30 ? 0 : 4.9)
+  const discount = appliedPromo?.discount || 0
+  const total = Math.max(0, subtotal - discount) + deliveryFee
+
+  const handleApplyPromo = async () => {
+    if (!promoInput.trim()) return
+    setPromoLoading(true)
+    try {
+      const res = await fetch("/api/promo/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoInput, subtotal })
+      })
+      const data = await res.json()
+      if (res.ok && data.valid) {
+        setAppliedPromo(data)
+        toast.success(`Code promo ${data.code} appliqué ! ${data.label}`)
+      } else {
+        toast.error(data.error || "Code promo invalide")
+      }
+    } catch {
+      toast.error("Erreur de validation du code")
+    } finally {
+      setPromoLoading(false)
+    }
+  }
 
   const handleCheckout = async () => {
     if (deliveryMethod === "livraison" && !selectedDelivery) {
       toast.error("Veuillez choisir une date et un créneau de livraison")
+      return
+    }
+    if (deliveryMethod === "livraison" && !address.trim()) {
+      toast.error("Veuillez renseigner votre adresse de livraison")
       return
     }
     try {
@@ -93,6 +152,10 @@ export default function CommandePage() {
           deliveryMethod,
           deliveryDate: selectedDelivery?.date,
           deliveryTime: selectedDelivery?.time,
+          deliveryAddress: address,
+          deliveryCity: city,
+          deliveryPostalCode: postalCode,
+          promoCode: appliedPromo?.code || null,
         })
       })
       const data = await res.json()
@@ -141,7 +204,6 @@ export default function CommandePage() {
       <div className="pt-32 pb-16 px-4">
         <div className="max-w-5xl mx-auto">
 
-          {/* Back */}
           <Link href="/" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-8">
             <ArrowLeft className="h-4 w-4" />
             Retour à la boutique
@@ -152,7 +214,6 @@ export default function CommandePage() {
           </h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Colonne gauche : mode de livraison + calendrier */}
             <div className="lg:col-span-2 space-y-6">
 
               {/* Choix livraison / retrait */}
@@ -171,7 +232,7 @@ export default function CommandePage() {
                     <p className="font-bold text-white">Livraison</p>
                     <p className="text-xs text-zinc-400 mt-1">Chez vous sous 24-48h</p>
                     <p className="text-xs text-zinc-500 mt-1">
-                      {subtotal > 30 ? "Gratuit" : "4.90€"} {subtotal <= 30 && `(gratuit dès 30€)`}
+                      {subtotal >= 30 ? "Gratuit" : "4.90€"} {subtotal < 30 && `(gratuit dès 30€)`}
                     </p>
                   </button>
                   <button
@@ -189,6 +250,57 @@ export default function CommandePage() {
                   </button>
                 </div>
               </div>
+
+              {/* Adresse de livraison */}
+              {deliveryMethod === "livraison" && (
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
+                    <User className="h-4 w-4" /> Adresse de livraison
+                  </h2>
+                  <Card className="glassmorphism bg-zinc-900/40 border-white/5 rounded-2xl">
+                    <CardContent className="p-5 space-y-4">
+                      <div>
+                        <label className="text-xs text-zinc-400 font-medium mb-1 block">Adresse *</label>
+                        <Input
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder="123 Rue de la Paix"
+                          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Code postal</label>
+                          <Input
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                            placeholder="97100"
+                            className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Ville</label>
+                          <Input
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                            placeholder="Basse-Terre"
+                            className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400 font-medium mb-1 block">Téléphone</label>
+                        <Input
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="0690 XX XX XX"
+                          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
               {/* Calendrier livraison OU info retrait */}
               {deliveryMethod === "livraison" ? (
@@ -211,6 +323,10 @@ export default function CommandePage() {
                       <p className="text-sm text-zinc-400 mt-1">Adresse du magasin</p>
                       <p className="text-sm text-zinc-400">97100 Guadeloupe</p>
                     </div>
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+                      <p className="text-sm text-orange-400 font-medium">Un code de retrait vous sera attribué après paiement.</p>
+                      <p className="text-xs text-zinc-400 mt-1">Présentez-le en magasin pour récupérer votre commande.</p>
+                    </div>
                     <div className="flex items-center gap-2 text-sm text-zinc-400">
                       <Clock className="h-4 w-4 text-orange-500" />
                       <span>Disponible sous 2h après confirmation</span>
@@ -218,6 +334,49 @@ export default function CommandePage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Code promo */}
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
+                  <Tag className="h-4 w-4" /> Code promo
+                </h2>
+                <Card className="glassmorphism bg-zinc-900/40 border-white/5 rounded-2xl">
+                  <CardContent className="p-5">
+                    {appliedPromo ? (
+                      <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+                        <div>
+                          <p className="text-sm font-bold text-green-400">{appliedPromo.code}</p>
+                          <p className="text-xs text-green-400/70">{appliedPromo.label} appliqué</p>
+                        </div>
+                        <button
+                          onClick={() => { setAppliedPromo(null); setPromoInput("") }}
+                          className="text-zinc-400 hover:text-white transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input
+                          value={promoInput}
+                          onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                          placeholder="Entrez votre code"
+                          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl uppercase"
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleApplyPromo() } }}
+                          disabled={promoLoading}
+                        />
+                        <Button
+                          onClick={handleApplyPromo}
+                          disabled={promoLoading || !promoInput.trim()}
+                          className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl px-6 shrink-0"
+                        >
+                          {promoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Appliquer"}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Colonne droite : récap */}
@@ -226,7 +385,6 @@ export default function CommandePage() {
                 <CardContent className="p-5 space-y-4">
                   <h3 className="font-bold text-white">Récapitulatif</h3>
 
-                  {/* Items */}
                   <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                     {processedItems.map((item) => (
                       <div key={item.id} className="flex gap-3">
@@ -264,6 +422,12 @@ export default function CommandePage() {
                         {deliveryFee === 0 ? "Gratuit" : `${deliveryFee.toFixed(2)}€`}
                       </span>
                     </div>
+                    {appliedPromo && (
+                      <div className="flex justify-between text-green-400">
+                        <span>Promo ({appliedPromo.code})</span>
+                        <span>-{appliedPromo.discount.toFixed(2)}€</span>
+                      </div>
+                    )}
                     {selectedDelivery && (
                       <div className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1.5 rounded-lg">
                         {selectedDelivery.date} — {selectedDelivery.time}
@@ -280,7 +444,7 @@ export default function CommandePage() {
 
                   <Button
                     onClick={handleCheckout}
-                    disabled={isCheckingOut || (deliveryMethod === "livraison" && !selectedDelivery)}
+                    disabled={isCheckingOut || (deliveryMethod === "livraison" && (!selectedDelivery || !address.trim()))}
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-6 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.3)] text-base disabled:opacity-50"
                   >
                     {isCheckingOut ? (

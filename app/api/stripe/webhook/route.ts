@@ -44,11 +44,36 @@ export async function POST(req: Request) {
                     return NextResponse.json({ received: true })
                 }
 
-                // Valider la commande
+                // Générer le numéro de facture
+                const invoiceNumber = `FAC-${Date.now().toString(36).toUpperCase()}-${orderId.slice(-4).toUpperCase()}`
+
+                // Valider la commande + sauvegarder le sessionId Stripe
                 const order = await prisma.order.update({
                     where: { id: orderId },
-                    data: { status: "validated" }
+                    data: {
+                        status: "validated",
+                        stripeSessionId: session.id,
+                        invoiceNumber,
+                    }
                 })
+
+                // Décrémenter le stock des produits commandés
+                const orderItems = await prisma.orderItem.findMany({
+                    where: { orderId },
+                    include: { product: true }
+                })
+                for (const item of orderItems) {
+                    if (item.productId && item.product) {
+                        const newStock = Math.max(0, item.product.currentStock - item.quantity)
+                        await prisma.product.update({
+                            where: { id: item.productId },
+                            data: {
+                                currentStock: newStock,
+                                inStock: newStock > 0,
+                            }
+                        })
+                    }
+                }
 
                 // Vider le panier — items un par un (Neon HTTP pas de deleteMany)
                 const userCart = await prisma.cart.findUnique({ where: { userId } })
@@ -65,7 +90,13 @@ export async function POST(req: Request) {
                 })
 
                 if (user?.email) {
-                    await sendOrderConfirmation(user.email, order.id, order.total)
+                    await sendOrderConfirmation(
+                        user.email,
+                        order.id,
+                        order.total,
+                        order.deliveryMethod || undefined,
+                        order.pickupCode
+                    )
                 }
             }
         }

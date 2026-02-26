@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   IconChartBar,
+  IconCalendarEvent,
   IconDashboard,
   IconDatabase,
   IconFileDescription,
@@ -12,6 +13,7 @@ import {
   IconReport,
   IconSearch,
   IconSettings,
+  IconTag,
   IconUsers,
 } from "@tabler/icons-react"
 import Link from "next/link"
@@ -78,6 +80,16 @@ const documents = [
     name: "Stock",
     url: "/admin/stock",
     icon: IconDatabase,
+  },
+  {
+    name: "Codes Promo",
+    url: "/admin/promo-codes",
+    icon: IconTag,
+  },
+  {
+    name: "Créneaux Livraison",
+    url: "/admin/delivery-slots",
+    icon: IconCalendarEvent,
   },
   {
     name: "Comptabilité",

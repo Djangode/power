@@ -231,6 +231,14 @@ export default function ConnexionPage() {
                 </div>
               </div>
 
+              {mode === "login" && (
+                <div className="flex justify-end -mt-1">
+                  <Link href="/mot-de-passe-oublie" className="text-xs text-orange-500 hover:text-orange-400">
+                    Mot de passe oublié ?
+                  </Link>
+                </div>
+              )}
+
               {mode === "register" && (
                 <div>
                   <Label htmlFor="confirmPassword" className="text-zinc-300">Confirmer le mot de passe</Label>

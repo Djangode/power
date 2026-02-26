@@ -15,82 +15,64 @@ import { Input } from "@/components/admin/ui/input"
 import { Label } from "@/components/admin/ui/label"
 import { Separator } from "@/components/admin/ui/separator"
 import {
-  Clock,
-  Package,
-  CheckCircle,
-  Eye,
-  Calendar,
-  UserCheck,
-  Calculator,
-  RefreshCw
+  Clock, Package, CheckCircle, Eye, Calendar, UserCheck,
+  Calculator, RefreshCw, Truck, Store, MapPin, Send
 } from "lucide-react"
 import { IconTrendingUp } from "@tabler/icons-react"
 
-// Types
 interface OrderItem {
   id: string
-  product_id: string | null
-  composition_id: string | null
-  quantity_ordered: number
-  quantity_prepared: number | null
-  unit_price: number
-  total_price: number
-  actual_price: number | null
-  products?: {
-    name: string
-    unit: string
-  } | null
-  compositions?: {
-    name: string
-  } | null
+  productId: string | null
+  compositionId: string | null
+  quantity: number
+  priceAtPurchase: number
+  product?: { name: string; unit: string } | null
+  composition?: { name: string } | null
 }
 
 interface Order {
   id: string
   order_number: string
   created_at: string
-  status: 'pending' | 'preparation' | 'validated' | 'delivering' | 'delivered' | 'cancelled'
+  status: string
   total: number
-  delivery_date: string | null
-  delivery_time_start: string | null
-  delivery_time_end: string | null
-  assigned_to: string | null
+  deliveryMethod: string | null
+  deliveryDate: string | null
+  deliverySlot: string | null
+  deliveryAddress: string | null
+  deliveryCity: string | null
+  deliveryPostalCode: string | null
+  deliveryFee: number
+  pickupCode: string | null
+  carrier: string | null
+  trackingNumber: string | null
+  invoiceNumber: string | null
+  items: OrderItem[]
   order_items: OrderItem[]
   profiles?: {
     first_name: string | null
     last_name: string | null
     email: string
   } | null
-  delivery_addresses?: {
-    street_address: string
-    city: string
-    postal_code: string
-  } | null
-  employees?: {
-    user_id: string
-    profiles?: {
-      first_name: string | null
-      last_name: string | null
-    } | null
+  user?: {
+    firstName: string | null
+    lastName: string | null
+    email: string
+    phone: string | null
   } | null
 }
-
-const employees = ["Admin", "Sophie", "Marc", "Julie", "Thomas"]
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [editingItems, setEditingItems] = useState<OrderItem[]>([])
-  const [newDeliveryDate, setNewDeliveryDate] = useState("")
-  const [newDeliveryTime, setNewDeliveryTime] = useState("")
-  const [selectedPeriod, setSelectedPeriod] = useState("today")
+  const [selectedPeriod, setSelectedPeriod] = useState("all")
   const [updating, setUpdating] = useState<string | null>(null)
 
-  // States pour les différents modals
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
-  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false)
-  const [isItemsModalOpen, setIsItemsModalOpen] = useState(false)
+  const [isShipModalOpen, setIsShipModalOpen] = useState(false)
+  const [carrier, setCarrier] = useState("")
+  const [trackingNumber, setTrackingNumber] = useState("")
 
   const loadOrders = useCallback(async () => {
     try {
@@ -108,77 +90,50 @@ export default function OrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedPeriod])
+  }, [])
 
   useEffect(() => {
     loadOrders()
   }, [loadOrders])
 
-  // Filtrer les commandes par statut
   const pendingOrders = orders.filter(o => o.status === 'pending')
-  const preparationOrders = orders.filter(o => o.status === 'preparation')
-  const validatedOrders = orders.filter(o => o.status === 'validated')
+  const validatedOrders = orders.filter(o => o.status === 'validated' || o.status === 'processing')
+  const shippedOrders = orders.filter(o => o.status === 'shipped')
+  const deliveredOrders = orders.filter(o => o.status === 'delivered')
 
-  // Données pour SectionCards
   const statsData = [
     {
       title: "En Attente",
       value: pendingOrders.length,
       description: "Commandes à traiter",
-      trend: {
-        value: "+12%",
-        isPositive: true,
-        icon: IconTrendingUp
-      },
-      footer: {
-        label: `${pendingOrders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}€ total`,
-        subtitle: "À valider aujourd'hui"
-      }
+      trend: { value: `${pendingOrders.reduce((s, o) => s + o.total, 0).toFixed(0)}€`, isPositive: true, icon: IconTrendingUp },
+      footer: { label: `${pendingOrders.length} commande(s)`, subtitle: "En attente de paiement" }
     },
     {
-      title: "En Préparation",
-      value: preparationOrders.length,
-      description: "Commandes assignées",
-      trend: {
-        value: "+8%",
-        isPositive: true,
-        icon: IconTrendingUp
-      },
-      footer: {
-        label: `${preparationOrders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}€ total`,
-        subtitle: "En cours de préparation"
-      }
-    },
-    {
-      title: "Validées",
+      title: "Validées / En prépa",
       value: validatedOrders.length,
-      description: "Prêtes à livrer",
-      trend: {
-        value: "+15%",
-        isPositive: true,
-        icon: IconTrendingUp
-      },
-      footer: {
-        label: `${validatedOrders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}€ total`,
-        subtitle: "Prêtes pour livraison"
-      }
+      description: "Confirmées par Stripe",
+      trend: { value: `${validatedOrders.reduce((s, o) => s + o.total, 0).toFixed(0)}€`, isPositive: true, icon: IconTrendingUp },
+      footer: { label: `${validatedOrders.length} commande(s)`, subtitle: "À préparer et expédier" }
+    },
+    {
+      title: "Livrées",
+      value: deliveredOrders.length,
+      description: "Commandes terminées",
+      trend: { value: `${deliveredOrders.reduce((s, o) => s + o.total, 0).toFixed(0)}€`, isPositive: true, icon: IconTrendingUp },
+      footer: { label: `${deliveredOrders.length} commande(s)`, subtitle: "Ce mois-ci" }
     }
   ]
 
-  // Fonctions de gestion des commandes
-  const updateOrderStatus = async (orderId: string, newStatus: Order['status'], assignedTo?: string) => {
+  const updateStatus = async (orderId: string, newStatus: string) => {
     try {
       setUpdating(orderId)
       await fetch(`/api/admin/orders/${orderId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
-      }) // Call
-      setOrders(orders.map(order =>
-        order.id === orderId
-          ? { ...order, status: newStatus, assigned_to: assignedTo || order.assigned_to }
-          : order
-      ))
+      })
+      await loadOrders()
     } catch (error) {
       console.error('Erreur:', error)
     } finally {
@@ -186,59 +141,19 @@ export default function OrdersPage() {
     }
   }
 
-  const handleValidateOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'preparation', 'Admin')
-  }
-
-  const handleAssignOrder = (orderId: string, assignedTo: string) => {
-    updateOrderStatus(orderId, 'preparation', assignedTo)
-  }
-
-  const handleValidatePreparation = async (orderId: string) => {
-    try {
-      setUpdating(orderId)
-      const newTotal = editingItems.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_price), 0)
-      await fetch(`/api/admin/orders/${orderId}/validate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: editingItems, total: newTotal })
-      }) // Call
-      setOrders(orders.map(order =>
-        order.id === orderId
-          ? { ...order, status: 'validated', total: newTotal }
-          : order
-      ))
-      setIsItemsModalOpen(false)
-      setEditingItems([])
-      setSelectedOrder(null)
-    } catch (error) {
-      console.error('Erreur:', error)
-    } finally {
-      setUpdating(null)
-    }
-  }
-
-  const handleUpdateDelivery = async () => {
+  const handleShip = async () => {
     if (!selectedOrder) return
-
     try {
       setUpdating(selectedOrder.id)
-      await fetch(`/api/admin/orders/${selectedOrder.id}/delivery`, { method: "PUT" }) // Stub
-      setOrders(orders.map(order =>
-        order.id === selectedOrder.id
-          ? {
-            ...order,
-            delivery_date: newDeliveryDate || order.delivery_date,
-            delivery_time_start: newDeliveryTime.split(' - ')[0] || order.delivery_time_start,
-            delivery_time_end: newDeliveryTime.split(' - ')[1] || order.delivery_time_end
-          }
-          : order
-      ))
-
-      setNewDeliveryDate("")
-      setNewDeliveryTime("")
-      setIsDeliveryModalOpen(false)
-      setSelectedOrder(null)
+      await fetch(`/api/admin/orders/${selectedOrder.id}/delivery`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carrier, trackingNumber })
+      })
+      setIsShipModalOpen(false)
+      setCarrier("")
+      setTrackingNumber("")
+      await loadOrders()
     } catch (error) {
       console.error('Erreur:', error)
     } finally {
@@ -246,93 +161,153 @@ export default function OrdersPage() {
     }
   }
 
-  // Fonctions d'ouverture des modals
-  const openDetailsModal = (order: Order) => {
-    setSelectedOrder(order)
-    setIsDetailsModalOpen(true)
-  }
-
-  const openDeliveryModal = (order: Order) => {
-    setSelectedOrder(order)
-    setNewDeliveryDate(order.delivery_date || '')
-    setNewDeliveryTime(order.delivery_time_start && order.delivery_time_end
-      ? `${order.delivery_time_start} - ${order.delivery_time_end}`
-      : '')
-    setIsDeliveryModalOpen(true)
-  }
-
-  const openItemsModal = (order: Order) => {
-    setSelectedOrder(order)
-    setEditingItems([...order.order_items])
-    setIsItemsModalOpen(true)
-  }
-
-  const updateItemQuantity = (itemId: string, newQuantity: number) => {
-    setEditingItems(editingItems.map(item =>
-      item.id === itemId
-        ? { ...item, quantity_ordered: Math.max(0, newQuantity) }
-        : item
-    ))
-  }
-
-  // Helpers pour l'affichage
   const getCustomerName = (order: Order) => {
-    if (order.profiles?.first_name && order.profiles?.last_name) {
-      return `${order.profiles.first_name} ${order.profiles.last_name}`
+    const p = order.profiles
+    const u = order.user
+    if (p?.first_name || p?.last_name) return `${p.first_name || ""} ${p.last_name || ""}`.trim()
+    if (u?.firstName || u?.lastName) return `${u.firstName || ""} ${u.lastName || ""}`.trim()
+    return p?.email || u?.email || "Client"
+  }
+
+  const getCustomerEmail = (order: Order) => {
+    return order.profiles?.email || order.user?.email || ""
+  }
+
+  const getItems = (order: Order) => {
+    return order.order_items || order.items || []
+  }
+
+  const getItemName = (item: OrderItem) => {
+    return item.product?.name || item.composition?.name || "Article"
+  }
+
+  const getItemQty = (item: OrderItem) => {
+    return (item as any).quantity_ordered || item.quantity
+  }
+
+  const getItemPrice = (item: OrderItem) => {
+    return (item as any).unit_price || item.priceAtPurchase
+  }
+
+  const getStatusBadge = (status: string) => {
+    const map: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+      pending: { label: "En attente", variant: "outline" },
+      validated: { label: "Validée", variant: "default" },
+      processing: { label: "Préparation", variant: "secondary" },
+      shipped: { label: "Expédiée", variant: "secondary" },
+      delivered: { label: "Livrée", variant: "default" },
+      cancelled: { label: "Annulée", variant: "destructive" },
     }
-    return order.profiles?.email || 'Client inconnu'
+    const cfg = map[status] || { label: status, variant: "outline" as const }
+    return <Badge variant={cfg.variant}>{cfg.label}</Badge>
   }
 
-  const getDeliveryInfo = (order: Order) => {
-    const city = order.delivery_addresses?.city || 'Ville non définie'
-    const date = order.delivery_date || 'Date non définie'
-    const time = order.delivery_time_start && order.delivery_time_end
-      ? `${order.delivery_time_start} - ${order.delivery_time_end}`
-      : 'Heure non définie'
-
-    return { city, date, time }
+  const getDeliveryBadge = (order: Order) => {
+    if (order.deliveryMethod === "retrait") {
+      return <Badge variant="outline" className="gap-1"><Store className="h-3 w-3" /> Retrait</Badge>
+    }
+    return <Badge variant="outline" className="gap-1"><Truck className="h-3 w-3" /> Livraison</Badge>
   }
 
-  const getProductName = (item: OrderItem) => {
-    return item.products?.name || item.compositions?.name || 'Produit inconnu'
+  const renderOrderCard = (order: Order, showActions = true) => {
+    const items = getItems(order)
+    return (
+      <div key={order.id} className="border rounded-lg p-4 space-y-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <h4 className="font-medium">{order.order_number}</h4>
+            <p className="text-sm text-muted-foreground">{getCustomerName(order)}</p>
+            <p className="text-xs text-muted-foreground">{getCustomerEmail(order)}</p>
+          </div>
+          <div className="text-right space-y-1">
+            <Badge variant="outline" className="font-bold">{order.total.toFixed(2)}€</Badge>
+            <div>{getDeliveryBadge(order)}</div>
+          </div>
+        </div>
+
+        {/* Delivery info */}
+        <div className="text-sm space-y-1">
+          {order.deliveryMethod === "retrait" ? (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              <span>Retrait magasin {order.pickupCode && `— Code: ${order.pickupCode}`}</span>
+            </div>
+          ) : (
+            <>
+              {order.deliveryAddress && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="h-3 w-3" />
+                  <span>{order.deliveryAddress}, {order.deliveryPostalCode} {order.deliveryCity}</span>
+                </div>
+              )}
+              {order.deliverySlot && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>{order.deliverySlot}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {items.length} article(s) — {new Date(order.created_at || order.createdAt).toLocaleDateString('fr-FR')}
+        </div>
+
+        {showActions && (
+          <div className="flex gap-1 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => { setSelectedOrder(order); setIsDetailsModalOpen(true) }}>
+              <Eye className="h-4 w-4 mr-1" /> Détails
+            </Button>
+
+            {order.status === "validated" && (
+              <Button size="sm" onClick={() => updateStatus(order.id, "processing")} disabled={updating === order.id}>
+                <Package className="h-4 w-4 mr-1" /> Préparer
+              </Button>
+            )}
+
+            {order.status === "processing" && (
+              <Button size="sm" onClick={() => { setSelectedOrder(order); setCarrier(""); setTrackingNumber(""); setIsShipModalOpen(true) }} disabled={updating === order.id}>
+                <Send className="h-4 w-4 mr-1" /> Expédier
+              </Button>
+            )}
+
+            {order.status === "shipped" && (
+              <Button size="sm" onClick={() => updateStatus(order.id, "delivered")} disabled={updating === order.id}>
+                <CheckCircle className="h-4 w-4 mr-1" /> Livré
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
-    <SidebarProvider
-      style={{
-        "--sidebar-width": "19rem",
-      } as React.CSSProperties}
-    >
+    <SidebarProvider style={{ "--sidebar-width": "19rem" } as React.CSSProperties}>
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-4 p-4 lg:p-6">
 
-            {/* Header */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h1 className="text-2xl font-bold">Gestion des Commandes</h1>
                 <p className="text-muted-foreground">Suivez et gérez toutes les commandes</p>
               </div>
-
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={loadOrders}
-                  disabled={loading}
-                >
+                <Button variant="outline" onClick={loadOrders} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                   Actualiser
                 </Button>
-
-                <Label>Période:</Label>
                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                   <SelectTrigger className="w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="today">Aujourd hui</SelectItem>
+                    <SelectItem value="all">Toutes</SelectItem>
+                    <SelectItem value="today">Aujourd&apos;hui</SelectItem>
                     <SelectItem value="week">Cette semaine</SelectItem>
                     <SelectItem value="month">Ce mois</SelectItem>
                   </SelectContent>
@@ -340,189 +315,57 @@ export default function OrdersPage() {
               </div>
             </div>
 
-            {/* Stats Cards */}
             <SectionCards data={statsData} />
 
             {loading ? (
               <div className="text-center py-8">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent mx-auto mb-4"></div>
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent mx-auto mb-4" />
                 <p className="text-muted-foreground">Chargement des commandes...</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-                {/* Commandes en attente */}
+                {/* Pending */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5" />
-                      En Attente ({pendingOrders.length})
+                      <Clock className="h-5 w-5" /> En Attente ({pendingOrders.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {pendingOrders.map((order) => {
-                        const customerName = getCustomerName(order)
-                        const deliveryInfo = getDeliveryInfo(order)
-                        return (
-                          <div key={order.id} className="border rounded-lg p-4 space-y-3">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-medium">{customerName}</h4>
-                                <p className="text-sm text-muted-foreground">{order.profiles?.email}</p>
-                              </div>
-                              <Badge variant="outline">{order.total.toFixed(2)}€</Badge>
-                            </div>
-
-                            <div className="text-sm">
-                              <p><strong>Ville:</strong> {deliveryInfo.city}</p>
-                              <p><strong>Date:</strong> {deliveryInfo.date}</p>
-                              <p><strong>Heure:</strong> {deliveryInfo.time}</p>
-                            </div>
-
-                            <div className="flex gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDetailsModal(order)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDeliveryModal(order)}
-                              >
-                                <Calendar className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                onClick={() => handleValidateOrder(order.id)}
-                                disabled={updating === order.id}
-                              >
-                                <UserCheck className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                      {pendingOrders.length === 0 && (
-                        <p className="text-center text-muted-foreground py-4">
-                          Aucune commande en attente
-                        </p>
-                      )}
+                      {pendingOrders.map(o => renderOrderCard(o, false))}
+                      {pendingOrders.length === 0 && <p className="text-center text-muted-foreground py-4">Aucune commande en attente</p>}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Commandes en préparation */}
+                {/* Validated / Processing */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5" />
-                      En Préparation ({preparationOrders.length})
+                      <Package className="h-5 w-5" /> À traiter ({validatedOrders.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {preparationOrders.map((order) => (
-                        <div key={order.id} className="border rounded-lg p-4 space-y-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium">{order.order_number}</h4>
-                              <Badge variant="outline">{order.order_items.length} articles</Badge>
-                            </div>
-                            <Badge variant="outline">{order.total.toFixed(2)}€</Badge>
-                          </div>
-
-                          <div>
-                            <Label className="text-sm">Assigné à:</Label>
-                            <Select
-                              value={order.assigned_to || ""}
-                              onValueChange={(value) => handleAssignOrder(order.id, value)}
-                              disabled={updating === order.id}
-                            >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Assigner" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {employees.map(emp => (
-                                  <SelectItem key={emp} value={emp}>{emp}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openItemsModal(order)}
-                              className="flex-1"
-                              disabled={updating === order.id}
-                            >
-                              <Calculator className="h-4 w-4 mr-1" />
-                              Valider
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleValidatePreparation(order.id)}
-                              disabled={!order.assigned_to || updating === order.id}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      {preparationOrders.length === 0 && (
-                        <p className="text-center text-muted-foreground py-4">
-                          Aucune commande en préparation
-                        </p>
-                      )}
+                      {validatedOrders.map(o => renderOrderCard(o))}
+                      {validatedOrders.length === 0 && <p className="text-center text-muted-foreground py-4">Aucune commande à traiter</p>}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Commandes validées */}
+                {/* Shipped / Delivered */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5" />
-                      Validées ({validatedOrders.length})
+                      <CheckCircle className="h-5 w-5" /> Expédiées / Livrées ({shippedOrders.length + deliveredOrders.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {validatedOrders.map((order) => (
-                        <div key={order.id} className="border rounded-lg p-4 space-y-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium">{order.order_number}</h4>
-                              <p className="text-sm text-muted-foreground">{getCustomerName(order)}</p>
-                            </div>
-                            <Badge variant="secondary">{order.total.toFixed(2)}€</Badge>
-                          </div>
-
-                          <Badge variant="secondary">Prête pour livraison</Badge>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openDetailsModal(order)}
-                            className="w-full"
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Voir détails
-                          </Button>
-                        </div>
-                      ))}
-                      {validatedOrders.length === 0 && (
-                        <p className="text-center text-muted-foreground py-4">
-                          Aucune commande validée
-                        </p>
-                      )}
+                      {shippedOrders.map(o => renderOrderCard(o))}
+                      {deliveredOrders.slice(0, 5).map(o => renderOrderCard(o, false))}
+                      {shippedOrders.length + deliveredOrders.length === 0 && <p className="text-center text-muted-foreground py-4">Aucune commande expédiée</p>}
                     </div>
                   </CardContent>
                 </Card>
@@ -532,44 +375,53 @@ export default function OrdersPage() {
         </div>
       </SidebarInset>
 
-      {/* Modal Détails Commande */}
-      <Modal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
-        title={`Détails Commande ${selectedOrder?.order_number}`}
-        className="max-w-2xl"
-      >
+      {/* Details Modal */}
+      <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title={`Commande ${selectedOrder?.order_number}`} className="max-w-2xl">
         {selectedOrder && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Client</Label>
                 <p className="font-medium">{getCustomerName(selectedOrder)}</p>
-                <p className="text-sm text-muted-foreground">{selectedOrder.profiles?.email}</p>
+                <p className="text-sm text-muted-foreground">{getCustomerEmail(selectedOrder)}</p>
               </div>
               <div>
-                <Label>Livraison</Label>
-                <p>{getDeliveryInfo(selectedOrder).city}</p>
-                <p>{getDeliveryInfo(selectedOrder).date} • {getDeliveryInfo(selectedOrder).time}</p>
+                <Label>Statut</Label>
+                <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                <div className="mt-1">{getDeliveryBadge(selectedOrder)}</div>
               </div>
             </div>
 
-            {selectedOrder.assigned_to && (
-              <div>
-                <Label>Assigné à</Label>
-                <p className="font-medium">{selectedOrder.assigned_to}</p>
-              </div>
-            )}
+            {/* Delivery details */}
+            <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+              {selectedOrder.deliveryMethod === "retrait" ? (
+                <>
+                  <p className="font-medium flex items-center gap-2"><Store className="h-4 w-4" /> Retrait en magasin</p>
+                  {selectedOrder.pickupCode && <p className="text-sm">Code: <strong>{selectedOrder.pickupCode}</strong></p>}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium flex items-center gap-2"><Truck className="h-4 w-4" /> Livraison</p>
+                  {selectedOrder.deliveryAddress && (
+                    <p className="text-sm">{selectedOrder.deliveryAddress}, {selectedOrder.deliveryPostalCode} {selectedOrder.deliveryCity}</p>
+                  )}
+                  {selectedOrder.deliverySlot && <p className="text-sm">Créneau: {selectedOrder.deliverySlot}</p>}
+                  {selectedOrder.carrier && <p className="text-sm">Transporteur: {selectedOrder.carrier}</p>}
+                  {selectedOrder.trackingNumber && <p className="text-sm">Suivi: {selectedOrder.trackingNumber}</p>}
+                </>
+              )}
+              {selectedOrder.deliveryFee > 0 && <p className="text-sm">Frais: {selectedOrder.deliveryFee.toFixed(2)}€</p>}
+            </div>
 
             <Separator />
 
             <div>
-              <Label>Articles commandés</Label>
+              <Label>Articles</Label>
               <div className="mt-2 space-y-2">
-                {selectedOrder.order_items.map(item => (
-                  <div key={item.id} className="flex justify-between">
-                    <span>{getProductName(item)} - {item.quantity_ordered} {item.products?.unit || 'pc'}</span>
-                    <span>{item.total_price.toFixed(2)}€</span>
+                {getItems(selectedOrder).map(item => (
+                  <div key={item.id} className="flex justify-between items-center">
+                    <span>{getItemName(item)} — x{getItemQty(item)} {item.product?.unit || ''}</span>
+                    <span className="font-medium">{(getItemQty(item) * getItemPrice(item)).toFixed(2)}€</span>
                   </div>
                 ))}
               </div>
@@ -577,134 +429,51 @@ export default function OrdersPage() {
 
             <Separator />
 
-            <div className="flex justify-between font-bold">
+            <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
               <span>{selectedOrder.total.toFixed(2)}€</span>
+            </div>
+
+            {selectedOrder.invoiceNumber && (
+              <p className="text-sm text-muted-foreground">Facture: {selectedOrder.invoiceNumber}</p>
+            )}
+
+            {/* Status actions */}
+            <div className="flex gap-2 pt-2">
+              {selectedOrder.status === "validated" && (
+                <Button onClick={() => { updateStatus(selectedOrder.id, "processing"); setIsDetailsModalOpen(false) }}>
+                  <Package className="h-4 w-4 mr-2" /> Mettre en préparation
+                </Button>
+              )}
+              {selectedOrder.status === "processing" && (
+                <Button onClick={() => { setIsDetailsModalOpen(false); setIsShipModalOpen(true) }}>
+                  <Send className="h-4 w-4 mr-2" /> Expédier
+                </Button>
+              )}
+              {selectedOrder.status === "shipped" && (
+                <Button onClick={() => { updateStatus(selectedOrder.id, "delivered"); setIsDetailsModalOpen(false) }}>
+                  <CheckCircle className="h-4 w-4 mr-2" /> Marquer comme livré
+                </Button>
+              )}
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Modal Édition Livraison */}
-      <Modal
-        isOpen={isDeliveryModalOpen}
-        onClose={() => setIsDeliveryModalOpen(false)}
-        title={`Modifier la livraison - ${selectedOrder?.order_number}`}
-        className="max-w-md"
-      >
+      {/* Ship Modal */}
+      <Modal isOpen={isShipModalOpen} onClose={() => setIsShipModalOpen(false)} title={`Expédier ${selectedOrder?.order_number}`} className="max-w-md">
         <div className="space-y-4">
           <div>
-            <Label htmlFor="newDate">Nouvelle date</Label>
-            <Input
-              id="newDate"
-              type="date"
-              value={newDeliveryDate}
-              onChange={(e) => setNewDeliveryDate(e.target.value)}
-            />
+            <Label>Transporteur</Label>
+            <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Colissimo, Chronopost..." />
           </div>
           <div>
-            <Label htmlFor="newTime">Nouveau créneau</Label>
-            <Select value={newDeliveryTime} onValueChange={setNewDeliveryTime}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un créneau" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="08:00 - 10:00">08:00 - 10:00</SelectItem>
-                <SelectItem value="10:00 - 12:00">10:00 - 12:00</SelectItem>
-                <SelectItem value="14:00 - 16:00">14:00 - 16:00</SelectItem>
-                <SelectItem value="16:00 - 18:00">16:00 - 18:00</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Numéro de suivi</Label>
+            <Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="XX000000000FR" />
           </div>
-          <Button
-            onClick={handleUpdateDelivery}
-            className="w-full"
-            disabled={updating === selectedOrder?.id}
-          >
-            {updating === selectedOrder?.id ? 'Mise à jour...' : 'Mettre à jour'}
+          <Button onClick={handleShip} className="w-full" disabled={updating === selectedOrder?.id}>
+            {updating === selectedOrder?.id ? "Envoi..." : "Confirmer l'expédition"}
           </Button>
-        </div>
-      </Modal>
-
-      {/* Modal Validation Produits */}
-      <Modal
-        isOpen={isItemsModalOpen}
-        onClose={() => setIsItemsModalOpen(false)}
-        title={`Validation Produits - ${selectedOrder?.order_number}`}
-        className="max-w-6xl max-h-[90vh] overflow-y-auto"
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Client</Label>
-              <p className="font-medium">{selectedOrder && getCustomerName(selectedOrder)}</p>
-            </div>
-            <div>
-              <Label>Montant original</Label>
-              <p className="font-medium">{selectedOrder?.total.toFixed(2)}€</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div>
-            <Label>Articles à valider</Label>
-            <div className="mt-2">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Produit</TableHead>
-                    <TableHead>Qté Commandée</TableHead>
-                    <TableHead>Qté Préparée</TableHead>
-                    <TableHead>Prix Unit.</TableHead>
-                    <TableHead>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {editingItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{getProductName(item)}</TableCell>
-                      <TableCell>
-                        <span className="bg-gray-100 px-2 py-1 rounded text-sm">
-                          {item.quantity_ordered} {item.products?.unit || 'pc'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={item.quantity_ordered}
-                          onChange={(e) => updateItemQuantity(item.id, Number(e.target.value))}
-                          className="w-20"
-                          min="0"
-                        />
-                      </TableCell>
-                      <TableCell>{item.unit_price.toFixed(2)}€</TableCell>
-                      <TableCell className="font-medium">
-                        {(item.quantity_ordered * item.unit_price).toFixed(2)}€
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex justify-between items-center">
-            <div>
-              <Label>Nouveau total</Label>
-              <p className="text-lg font-bold">
-                {editingItems.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_price), 0).toFixed(2)}€
-              </p>
-            </div>
-            <Button
-              onClick={() => selectedOrder && handleValidatePreparation(selectedOrder.id)}
-              disabled={updating === selectedOrder?.id}
-            >
-              {updating === selectedOrder?.id ? 'Validation...' : 'Valider la préparation'}
-            </Button>
-          </div>
         </div>
       </Modal>
     </SidebarProvider>

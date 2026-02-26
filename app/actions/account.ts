@@ -78,7 +78,10 @@ export async function getUserOrders() {
             where: { userId: session.user.id },
             include: {
                 items: {
-                    include: { product: true }
+                    include: {
+                        product: true,
+                        composition: true,
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' }

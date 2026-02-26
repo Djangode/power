@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db"
 import { auth } from "@/auth"
 import { NextResponse } from "next/server"
+import { sendOrderStatusUpdate } from "@/lib/email"
 
 export async function PUT(
     request: Request,
@@ -19,13 +20,19 @@ export async function PUT(
         const updatedOrder = await prisma.order.update({
             where: { id },
             data: {
-                carrier,
-                trackingNumber,
-                deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-                deliverySlot: deliverySlot || null,
+                carrier: carrier || null,
+                trackingNumber: trackingNumber || null,
+                deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+                deliverySlot: deliverySlot || undefined,
                 status: "shipped"
-            }
+            },
+            include: { user: true }
         })
+
+        // Send shipping notification email
+        if (updatedOrder.user?.email) {
+            await sendOrderStatusUpdate(updatedOrder.user.email, id, "shipped", trackingNumber)
+        }
 
         return NextResponse.json({ success: true, data: updatedOrder })
     } catch (error) {

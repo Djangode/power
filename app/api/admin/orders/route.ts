@@ -16,6 +16,7 @@ export async function GET() {
                         firstName: true,
                         lastName: true,
                         email: true,
+                        phone: true,
                     }
                 },
                 items: {
@@ -29,22 +30,45 @@ export async function GET() {
         })
 
         const formattedOrders = orders.map(order => ({
-            ...order,
+            id: order.id,
             order_number: `CMD-${order.id.slice(-6).toUpperCase()}`,
             created_at: order.createdAt,
-            order_items: order.items.map((item) => ({
-                ...item,
-                quantity_ordered: item.quantity,
-                unit_price: item.priceAtPurchase,
-                total_price: item.quantity * item.priceAtPurchase,
-                products: item.product,
-                compositions: item.composition
-            })),
+            createdAt: order.createdAt,
+            status: order.status,
+            total: order.total,
+            deliveryMethod: order.deliveryMethod,
+            deliveryDate: order.deliveryDate,
+            deliverySlot: order.deliverySlot,
+            deliveryAddress: order.deliveryAddress,
+            deliveryCity: order.deliveryCity,
+            deliveryPostalCode: order.deliveryPostalCode,
+            deliveryFee: order.deliveryFee,
+            pickupCode: order.pickupCode,
+            carrier: order.carrier,
+            trackingNumber: order.trackingNumber,
+            invoiceNumber: order.invoiceNumber,
+            stripeSessionId: order.stripeSessionId,
+            user: order.user,
             profiles: order.user ? {
                 first_name: order.user.firstName,
                 last_name: order.user.lastName,
                 email: order.user.email
-            } : null
+            } : null,
+            items: order.items,
+            order_items: order.items.map((item) => ({
+                id: item.id,
+                productId: item.productId,
+                compositionId: item.compositionId,
+                quantity: item.quantity,
+                quantity_ordered: item.quantity,
+                priceAtPurchase: item.priceAtPurchase,
+                unit_price: item.priceAtPurchase,
+                total_price: item.quantity * item.priceAtPurchase,
+                product: item.product,
+                products: item.product,
+                composition: item.composition,
+                compositions: item.composition,
+            })),
         }))
 
         return NextResponse.json(formattedOrders)
