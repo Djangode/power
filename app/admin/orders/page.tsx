@@ -251,7 +251,7 @@ export default function OrdersPage() {
         </div>
 
         <div className="text-xs text-muted-foreground">
-          {items.length} article(s) — {new Date(order.created_at || order.createdAt).toLocaleDateString('fr-FR')}
+          {items.length} article(s) — {new Date(order.created_at).toLocaleDateString('fr-FR')}
         </div>
 
         {showActions && (
