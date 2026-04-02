@@ -73,10 +73,10 @@ export async function POST(req: NextRequest) {
                 promoDiscount = Math.round(promoDiscount * 100) / 100
                 validPromoCode = promo.code
 
-                // Incrémenter le compteur d'utilisation
+                // Incrémenter le compteur d'utilisation (atomique pour éviter les race conditions)
                 await prisma.promoCode.update({
                     where: { id: promo.id },
-                    data: { currentUses: promo.currentUses + 1 }
+                    data: { currentUses: { increment: 1 } }
                 })
             }
         }

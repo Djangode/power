@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/auth"
+import { z } from "zod"
+
+const compositionSchema = z.object({
+    name: z.string().min(1, "Le nom est requis").max(200),
+    type: z.enum(["jus", "soupe", "legumes-decoupes"], {
+        errorMap: () => ({ message: "Type invalide. Valeurs : jus, soupe, legumes-decoupes" }),
+    }),
+    description: z.string().max(2000).optional().nullable(),
+    basePrice: z.union([z.number(), z.string()]).transform((val) => {
+        const num = typeof val === 'string' ? parseFloat(val) : val
+        if (isNaN(num) || num < 0) throw new Error("Prix de base invalide")
+        return num
+    }),
+    imageUrl: z.string().url().optional().nullable(),
+})
 
 export async function GET() {
     try {
@@ -28,14 +43,24 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json()
+        const parsed = compositionSchema.safeParse(body)
+
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: parsed.error.errors[0].message },
+                { status: 400 }
+            )
+        }
+
+        const data = parsed.data
 
         const composition = await prisma.composition.create({
             data: {
-                name: body.name,
-                type: body.type,
-                description: body.description || null,
-                basePrice: parseFloat(body.basePrice),
-                imageUrl: body.imageUrl || null,
+                name: data.name,
+                type: data.type,
+                description: data.description || null,
+                basePrice: data.basePrice,
+                imageUrl: data.imageUrl || null,
             }
         })
 

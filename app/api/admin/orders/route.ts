@@ -47,7 +47,7 @@ export async function GET() {
             carrier: order.carrier,
             trackingNumber: order.trackingNumber,
             invoiceNumber: order.invoiceNumber,
-            stripeSessionId: order.stripeSessionId,
+            // stripeSessionId volontairement omis pour des raisons de sécurité
             user: order.user,
             profiles: order.user ? {
                 first_name: order.user.firstName,

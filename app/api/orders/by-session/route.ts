@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { auth } from "@/auth"
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session_id")
@@ -9,8 +10,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Vérification d'authentification obligatoire
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
+    }
+
     const order = await prisma.order.findFirst({
-      where: { stripeSessionId: sessionId },
+      where: {
+        stripeSessionId: sessionId,
+        userId: session.user.id, // Seul le propriétaire peut voir sa commande
+      },
       include: {
         items: {
           include: {

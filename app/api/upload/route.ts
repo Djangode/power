@@ -4,6 +4,15 @@ import { writeFile } from "fs/promises"
 import { join } from "path"
 import sharp from "sharp"
 
+const ALLOWED_MIME_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+]
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 Mo
+
 export async function POST(req: Request) {
     try {
         const session = await auth()
@@ -16,6 +25,22 @@ export async function POST(req: Request) {
 
         if (!file) {
             return NextResponse.json({ error: "Aucun fichier" }, { status: 400 })
+        }
+
+        // Validation du type MIME
+        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+            return NextResponse.json(
+                { error: `Type de fichier non autorisé (${file.type}). Formats acceptés : JPEG, PNG, WebP, GIF, AVIF` },
+                { status: 400 }
+            )
+        }
+
+        // Validation de la taille
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json(
+                { error: `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Maximum : 10 Mo` },
+                { status: 400 }
+            )
         }
 
         const bytes = await file.arrayBuffer()

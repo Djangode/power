@@ -2,6 +2,15 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/auth"
 import { sendOrderStatusUpdate, sendPickupReadyEmail } from "@/lib/email"
+import { z } from "zod"
+
+const VALID_STATUSES = ["pending", "validated", "processing", "shipped", "delivered", "cancelled"] as const
+
+const statusSchema = z.object({
+    status: z.enum(VALID_STATUSES, {
+        errorMap: () => ({ message: `Statut invalide. Valeurs autorisées : ${VALID_STATUSES.join(", ")}` }),
+    }),
+})
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -12,11 +21,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         const { id } = await params
         const body = await req.json()
-        const { status } = body
+        const parsed = statusSchema.safeParse(body)
 
-        if (!status) {
-            return new NextResponse("Bad Request", { status: 400 })
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: parsed.error.errors[0].message },
+                { status: 400 }
+            )
         }
+
+        const { status } = parsed.data
 
         const updatedOrder = await prisma.order.update({
             where: { id },

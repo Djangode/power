@@ -31,7 +31,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
             async authorize(credentials) {
                 const parsedCredentials = z
-                    .object({ email: z.string().email(), password: z.string().min(6) })
+                    .object({ email: z.string().email(), password: z.string().min(8) })
                     .safeParse(credentials)
 
                 if (parsedCredentials.success) {
@@ -94,14 +94,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     token.role = dbUser.role
                 }
             }
-            // Persister le role dans le token à chaque requête
+            // Persister le role dans le token si absent (fallback unique)
             if (!token.role && token.sub) {
                 try {
                     const dbUser = await prisma.user.findUnique({ where: { id: token.sub } })
                     if (dbUser) {
                         token.role = dbUser.role
                     }
-                } catch {}
+                } catch (error) {
+                    console.error("Erreur récupération rôle JWT:", error)
+                }
             }
             return token
         }

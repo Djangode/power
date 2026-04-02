@@ -100,7 +100,7 @@ export async function sendContactNotification(name: string, email: string, subje
           <p><strong>De :</strong> ${name} (${email})</p>
           <p><strong>Sujet :</strong> ${subject || "Non spécifié"}</p>
           <hr/>
-          <p>${message.replace(/\n/g, "<br/>")}</p>
+          <p>${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/\n/g, "<br/>")}</p>
         </div>
       `
     })

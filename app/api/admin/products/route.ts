@@ -1,6 +1,43 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/auth"
+import { z } from "zod"
+
+const productSchema = z.object({
+    name: z.string().min(1, "Le nom est requis").max(200),
+    description: z.string().max(2000).optional().nullable(),
+    price: z.union([z.number(), z.string()]).transform((val) => {
+        const num = typeof val === 'string' ? parseFloat(val) : val
+        return num
+    }).pipe(z.number({ message: "Prix invalide" }).min(0, "Le prix doit être positif").finite("Prix invalide")),
+    unit: z.string().default("kg"),
+    image: z.string().optional().nullable(),
+    inStock: z.boolean().default(true),
+    organic: z.boolean().default(false),
+    supplier: z.string().max(200).optional().nullable(),
+    origin: z.string().max(200).optional().nullable(),
+    purchasePrice: z.union([z.number(), z.string()]).optional().nullable().transform((val) => {
+        if (val === null || val === undefined || val === '') return null
+        const num = typeof val === 'string' ? parseFloat(val) : val
+        return isNaN(num) ? null : num
+    }),
+    margin: z.union([z.number(), z.string()]).optional().nullable().transform((val) => {
+        if (val === null || val === undefined || val === '') return null
+        const num = typeof val === 'string' ? parseFloat(val) : val
+        return isNaN(num) ? null : num
+    }),
+    currentStock: z.union([z.number(), z.string()]).optional().transform((val) => {
+        if (val === null || val === undefined || val === '') return 0
+        const num = typeof val === 'string' ? parseInt(String(val)) : val
+        return isNaN(num) ? 0 : Math.max(0, num)
+    }),
+    minimumStock: z.union([z.number(), z.string()]).optional().transform((val) => {
+        if (val === null || val === undefined || val === '') return 10
+        const num = typeof val === 'string' ? parseInt(String(val)) : val
+        return isNaN(num) ? 10 : Math.max(0, num)
+    }),
+    categoryId: z.string().min(1, "La catégorie est requise"),
+})
 
 export async function GET() {
     try {
@@ -49,23 +86,33 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json()
+        const parsed = productSchema.safeParse(body)
+
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: parsed.error.errors[0].message },
+                { status: 400 }
+            )
+        }
+
+        const data = parsed.data
 
         const product = await prisma.product.create({
             data: {
-                name: body.name,
-                description: body.description || null,
-                price: parseFloat(body.price),
-                unit: body.unit || "kg",
-                image: body.image || null,
-                inStock: body.inStock ?? true,
-                organic: body.organic ?? false,
-                supplier: body.supplier || null,
-                origin: body.origin || null,
-                purchasePrice: body.purchasePrice ? parseFloat(body.purchasePrice) : null,
-                margin: body.margin ? parseFloat(body.margin) : null,
-                currentStock: body.currentStock ? parseInt(body.currentStock) : 0,
-                minimumStock: body.minimumStock ? parseInt(body.minimumStock) : 10,
-                categoryId: body.categoryId,
+                name: data.name,
+                description: data.description || null,
+                price: data.price,
+                unit: data.unit,
+                image: data.image || null,
+                inStock: data.inStock,
+                organic: data.organic,
+                supplier: data.supplier || null,
+                origin: data.origin || null,
+                purchasePrice: data.purchasePrice ?? null,
+                margin: data.margin ?? null,
+                currentStock: data.currentStock ?? 0,
+                minimumStock: data.minimumStock ?? 10,
+                categoryId: data.categoryId,
             }
         })
 
