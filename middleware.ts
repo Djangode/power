@@ -1,5 +1,10 @@
-import { auth } from "@/auth"
+import NextAuth from "next-auth"
+import { authConfig } from "@/auth.config"
 import { NextResponse } from "next/server"
+
+// Utilise auth.config.ts (léger, Edge-compatible)
+// au lieu de auth.ts (qui importe Prisma/bcrypt → trop lourd pour Edge)
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
   const { pathname } = req.nextUrl
