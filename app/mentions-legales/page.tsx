@@ -13,12 +13,12 @@ export default function MentionsLegalesPage() {
                 <div className="prose prose-invert max-w-none text-zinc-400 leading-relaxed space-y-8">
                     <section className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5">
                         <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-widest">Éditeur du site</h2>
-                        <p>POWER SAS<br />Capital de 10 000€<br />Siège social : Paris, France</p>
+                        <p>Société : POWER<br />SIRET : 944 504 794 00016<br />Siège social : 114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
                     </section>
 
                     <section>
                         <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-widest">Hébergement</h2>
-                        <p>Vercel Inc.<br />340 S Lemon Ave #1142<br />Walnut, CA 91789<br />États-Unis</p>
+                        <p>Vercel Inc.<br />340 S Lemon Ave #1142<br />Walnut, CA 91789, États-Unis</p>
                     </section>
 
                     <section>

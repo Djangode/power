@@ -66,7 +66,7 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
             transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
             className="text-lg md:text-2xl text-white/80 mb-12 max-w-2xl mx-auto font-light drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]"
           >
-            {subtitle || "Le primeur digital avec des produits extra-frais et locaux, sélectionnés chaque matin."}
+            {subtitle || "votre primeur extra-frais et locaux, sélectionnés chaque matin."}
           </motion.p>
 
           <motion.div

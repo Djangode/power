@@ -70,7 +70,7 @@ export default function ContactPage() {
                             </div>
                             <div>
                                 <h3 className="text-2xl font-black uppercase italic mb-2">Téléphone</h3>
-                                <p className="text-zinc-500 font-medium">+33 1 23 45 67 89</p>
+                                <p className="text-zinc-500 font-medium">06 59 84 50 17</p>
                                 <p className="text-zinc-600 text-sm mt-1 italic tracking-widest text-balance">LUN - SAM : 08:00 - 20:00</p>
                             </div>
                         </div>
@@ -80,9 +80,8 @@ export default function ContactPage() {
                                 <MapPin className="w-8 h-8 text-orange-500" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-black uppercase italic mb-2">Siège</h3>
-                                <p className="text-zinc-500 font-medium">123 Avenue des Champs-Élysées, 75008 Paris</p>
-                                <p className="text-zinc-600 text-sm mt-1">Visites sur rendez-vous uniquement.</p>
+                                <h3 className="text-2xl font-black uppercase italic mb-2">Boutique</h3>
+                                <p className="text-zinc-500 font-medium">114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
                             </div>
                         </div>
                     </div>
