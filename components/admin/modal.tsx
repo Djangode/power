@@ -13,7 +13,7 @@ interface ModalProps {
 export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={className}>
+      <DialogContent className={className} aria-describedby={undefined}>
         {title && (
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

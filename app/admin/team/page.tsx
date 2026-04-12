@@ -170,9 +170,9 @@ export default function TeamPage() {
           password: "Power2024!", // Mot de passe temporaire
           phone: newEmployee.phone,
           role: newEmployee.role,
-          salary: parseFloat(newEmployee.salary),
+          salary: newEmployee.salary ? parseFloat(newEmployee.salary) : undefined,
           salaryType: newEmployee.salaryType,
-          hoursPerWeek: parseInt(newEmployee.hoursPerWeek),
+          hoursPerWeek: newEmployee.hoursPerWeek ? parseInt(newEmployee.hoursPerWeek) : undefined,
         })
       })
 
