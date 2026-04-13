@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { Plus, Minus, Leaf, Loader2 } from "lucide-react"
-import { addToCart } from "@/app/actions/cart"
+import { addToCart, decrementFromCart } from "@/app/actions/cart"
 import { toast } from "sonner"
 
 interface Product {
@@ -30,6 +30,7 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
       if (result.success) {
         setQuantity(prev => prev + 1)
         toast.success(`${product.name} ajouté !`)
+        window.dispatchEvent(new Event("cart-updated"))
       } else {
         toast.error(result.error || "Erreur")
       }
@@ -47,15 +48,27 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
       const result = await addToCart({ productId: product.id, quantity: 1 })
       if (result.success) {
         setQuantity(prev => prev + 1)
+        window.dispatchEvent(new Event("cart-updated"))
       }
     } catch {} finally {
       setLoading(false)
     }
   }
 
-  const handleDecrement = (e: React.MouseEvent) => {
+  const handleDecrement = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    setQuantity(prev => Math.max(0, prev - 1))
+    setLoading(true)
+    try {
+      const result = await decrementFromCart(product.id)
+      if (result.success) {
+        setQuantity(result.newQuantity)
+        window.dispatchEvent(new Event("cart-updated"))
+      }
+    } catch {
+      toast.error("Erreur")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

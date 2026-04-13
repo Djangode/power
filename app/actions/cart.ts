@@ -171,3 +171,30 @@ export async function clearCart() {
         return { success: false }
     }
 }
+
+// Action : Décrémenter depuis la fiche produit (par productId)
+export async function decrementFromCart(productId: string) {
+    try {
+        const cartId = await getCartId()
+
+        const item = await prisma.cartItem.findFirst({
+            where: { cartId, productId }
+        })
+
+        if (!item) return { success: true, removed: false, newQuantity: 0 }
+
+        if (item.quantity <= 1) {
+            await prisma.cartItem.delete({ where: { id: item.id } })
+            return { success: true, removed: true, newQuantity: 0 }
+        } else {
+            await prisma.cartItem.update({
+                where: { id: item.id },
+                data: { quantity: item.quantity - 1 }
+            })
+            return { success: true, removed: false, newQuantity: item.quantity - 1 }
+        }
+    } catch (error) {
+        console.error("Error decrementing cart item:", error)
+        return { success: false, removed: false, newQuantity: 0 }
+    }
+}

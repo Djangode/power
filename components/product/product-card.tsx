@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Eye, Plus, Minus, Leaf, Loader2, ShoppingCart } from "lucide-react"
-import { addToCart } from "@/app/actions/cart"
+import { addToCart, decrementFromCart } from "@/app/actions/cart"
 import { toast } from "sonner"
 
 interface Product {
@@ -38,6 +38,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
       if (result.success) {
         setQuantity(prev => prev + 1)
         toast.success(`${product.name} ajouté au panier !`)
+        window.dispatchEvent(new Event("cart-updated"))
       } else {
         toast.error("Erreur")
       }
@@ -54,15 +55,26 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
       const result = await addToCart({ productId: product.id, quantity: 1 })
       if (result.success) {
         setQuantity(prev => prev + 1)
+        window.dispatchEvent(new Event("cart-updated"))
       }
     } catch {} finally {
       setLoading(false)
     }
   }
 
-  const handleDecrement = () => {
-    setQuantity(prev => Math.max(0, prev - 1))
-    // Note: la vraie décrémentation se fait côté panier
+  const handleDecrement = async () => {
+    setLoading(true)
+    try {
+      const result = await decrementFromCart(product.id)
+      if (result.success) {
+        setQuantity(result.newQuantity)
+        window.dispatchEvent(new Event("cart-updated"))
+      }
+    } catch {
+      toast.error("Erreur")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
