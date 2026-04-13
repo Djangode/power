@@ -85,20 +85,21 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
       </motion.div>
 
       {/* Scroll Indicator */}
-      <motion.div
+      <motion.button
+        aria-label="Défiler vers la boutique"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 1 }}
-        className="absolute bottom-6 sm:bottom-10 inset-x-0 flex justify-center z-10"
+        className="absolute bottom-6 sm:bottom-10 inset-x-0 flex justify-center z-10 bg-transparent border-none hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 rounded-lg p-2"
         onClick={scrollToMarketplace}
       >
         <div className="flex flex-col items-center animate-bounce cursor-pointer">
-          <span className="text-white/60 text-[10px] sm:text-xs mb-2 sm:mb-3 uppercase tracking-[0.2em] font-medium drop-shadow-md">Scroll</span>
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/40 transition-colors">
+          <span className="text-white text-[10px] sm:text-xs mb-2 sm:mb-3 uppercase tracking-[0.2em] font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Scroll</span>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center border border-white/40 hover:bg-black/80 transition-colors">
             <ArrowDown className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
           </div>
         </div>
-      </motion.div>
+      </motion.button>
     </section>
   )
 }

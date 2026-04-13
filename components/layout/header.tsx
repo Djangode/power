@@ -70,7 +70,7 @@ export default function Header() {
             {/* Menu hamburger mobile - à gauche du logo */}
             <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden rounded-full hover:bg-white/10 text-white h-9 w-9">
+                <Button variant="ghost" size="icon" aria-label="Menu" className="md:hidden rounded-full hover:bg-white/10 text-white h-9 w-9">
                   <Menu className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -120,6 +120,7 @@ export default function Header() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Panier"
               className="relative rounded-full hover:bg-white/10 text-white"
               onClick={() => setCartOpen(true)}
             >
@@ -136,7 +137,7 @@ export default function Header() {
             ) : isLoggedIn ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10 text-white">
+                  <Button variant="ghost" size="icon" aria-label="Profil Utilisateur" className="rounded-full hover:bg-white/10 text-white">
                     <User className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
