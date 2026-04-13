@@ -287,8 +287,8 @@ export async function sendTeamInvitation(email: string, firstName: string, role:
       </div>
 
       <div style="text-align: center; margin-top: 24px;">
-        <a href="${APP_URL}/connexion" style="display: inline-block; background: #f97316; color: #fff; padding: 14px 32px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 14px;">
-          Se connecter
+        <a href="${APP_URL}/admin" style="display: inline-block; background: #f97316; color: #fff; padding: 14px 32px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 14px;">
+          Accéder à l'espace Admin
         </a>
       </div>
     `

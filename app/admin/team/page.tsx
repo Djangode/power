@@ -199,13 +199,36 @@ export default function TeamPage() {
     }
   }
 
-  const sendAccountInvitation = (employeeId: string) => {
-    setEmployees(employees.map(emp =>
-      emp.id === employeeId
-        ? { ...emp, accountCreated: true, hasAccount: true }
-        : emp
-    ))
-    alert(`Invitation envoyée à ${employees.find(e => e.id === employeeId)?.email}`)
+  const [invitingId, setInvitingId] = useState<string | null>(null)
+
+  const sendAccountInvitation = async (employeeId: string) => {
+    const emp = employees.find(e => e.id === employeeId)
+    if (!emp) return
+    if (!confirm(`Envoyer une invitation à ${emp.email} ? Un mot de passe temporaire sera généré.`)) return
+
+    setInvitingId(employeeId)
+    try {
+      const res = await fetch("/api/admin/team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setEmployees(employees.map(e =>
+          e.id === employeeId
+            ? { ...e, accountCreated: true, hasAccount: true }
+            : e
+        ))
+        alert(`✅ Invitation envoyée à ${emp.email} !`)
+      } else {
+        alert(`❌ Erreur : ${data.error || "Impossible d'envoyer l'invitation"}`)
+      }
+    } catch {
+      alert("❌ Erreur réseau")
+    } finally {
+      setInvitingId(null)
+    }
   }
 
   const toggleEmployeeStatus = (employeeId: string) => {
@@ -375,10 +398,14 @@ export default function TeamPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => sendAccountInvitation(employee.id)}
+                                disabled={invitingId === employee.id}
                                 className="text-orange-600 border-orange-200"
                               >
-                                <Mail className="h-3 w-3 mr-1" />
-                                Inviter
+                                {invitingId === employee.id ? (
+                                  <><span className="h-3 w-3 mr-1 animate-spin inline-block border-2 border-orange-600 border-t-transparent rounded-full" /> Envoi...</>
+                                ) : (
+                                  <><Mail className="h-3 w-3 mr-1" /> Inviter</>
+                                )}
                               </Button>
                             )}
                           </div>
