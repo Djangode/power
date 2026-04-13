@@ -194,6 +194,7 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1.5">
                       <button
+                        aria-label={`Réduire la quantité de ${item.name}`}
                         onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                         disabled={updatingId === item.id}
                         className="h-7 w-7 rounded-full bg-zinc-200 hover:bg-zinc-300 flex items-center justify-center text-zinc-700 transition-colors disabled:opacity-50"
@@ -202,6 +203,7 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                       </button>
                       <span className="w-6 text-center text-sm font-bold text-zinc-900">{item.quantity}</span>
                       <button
+                        aria-label={`Augmenter la quantité de ${item.name}`}
                         onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                         disabled={updatingId === item.id}
                         className="h-7 w-7 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center text-white transition-colors disabled:opacity-50"
@@ -212,6 +214,7 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-zinc-900">{item.total.toFixed(2)}€</span>
                       <button
+                        aria-label={`Supprimer ${item.name} du panier`}
                         onClick={() => handleRemoveItem(item.id)}
                         disabled={updatingId === item.id}
                         className="h-7 w-7 rounded-full hover:bg-red-100 flex items-center justify-center text-zinc-400 hover:text-red-500 transition-colors"

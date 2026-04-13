@@ -36,11 +36,13 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
       <motion.div style={{ scale: scaleImage }} className="absolute inset-0">
         <Image
           src="/power champ hero.png"
-          alt="Power - Produits frais"
+          alt="Power Primeur - Fruits et légumes frais livrés à domicile"
           fill
           priority
+          fetchPriority="high"
+          quality={75}
           className="object-cover"
-          sizes="100vw"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
         />
       </motion.div>
 

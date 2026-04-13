@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { sendTeamInvitation } from "@/lib/email"
 
 export async function GET() {
     try {
@@ -87,6 +88,19 @@ export async function POST(req: NextRequest) {
                 password: hashedPassword,
             }
         })
+
+        // Envoyer l'email d'invitation avec les identifiants
+        try {
+            await sendTeamInvitation(
+                employee.email,
+                employee.firstName || rest.firstName,
+                employee.role,
+                password // Le mot de passe en clair avant le hash
+            )
+        } catch (emailError) {
+            console.error("Erreur envoi email invitation:", emailError)
+            // On ne bloque pas la création si l'email échoue
+        }
 
         return NextResponse.json({
             success: true,

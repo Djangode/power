@@ -42,6 +42,7 @@ export default function QuickAddButton({ itemId, itemType, itemName }: QuickAddB
     return (
         <Button
             size="icon"
+            aria-label={`Ajouter ${itemName} au panier`}
             onClick={handleAdd}
             disabled={isAdding}
             className="rounded-full bg-white/10 hover:bg-orange-500 text-white backdrop-blur-md transition-all border border-white/10 disabled:opacity-50"

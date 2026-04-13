@@ -91,8 +91,8 @@ export default function Header() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link href="/">
-              <span className="text-xl font-extrabold text-white tracking-tight hidden sm:inline">Power<span className="text-orange-500">.</span></span>
+            <Link href="/" aria-label="Power Primeur — Accueil">
+              <span className="text-xl font-extrabold text-white tracking-tight"><span className="sm:hidden">P<span className="text-orange-500">.</span></span><span className="hidden sm:inline">Power<span className="text-orange-500">.</span></span></span>
             </Link>
           </div>
 

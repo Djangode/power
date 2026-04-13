@@ -89,6 +89,7 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
 
       {quantity === 0 ? (
         <button
+          aria-label={`Ajouter ${product.name} au panier`}
           onClick={handleAdd}
           disabled={loading || !product.inStock}
           className="flex-shrink-0 h-10 w-10 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
@@ -98,6 +99,7 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
       ) : (
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
+            aria-label={`Retirer ${product.name}`}
             onClick={handleDecrement}
             className="h-8 w-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors"
           >
@@ -105,6 +107,7 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
           </button>
           <span className="text-white font-bold text-sm w-5 text-center">{quantity}</span>
           <button
+            aria-label={`Ajouter ${product.name}`}
             onClick={handleIncrement}
             disabled={loading}
             className="h-8 w-8 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center transition-colors disabled:opacity-50"

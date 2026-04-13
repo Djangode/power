@@ -94,6 +94,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
 
           <Button
             size="icon"
+            aria-label={`Voir les détails de ${product.name}`}
             className="absolute top-6 right-6 h-12 w-12 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-orange-500 hover:border-orange-500"
             onClick={onViewDetails}
           >
@@ -126,6 +127,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
         ) : (
           <div className="flex items-center justify-center gap-4 w-full">
             <button
+              aria-label={`Retirer ${product.name}`}
               onClick={handleDecrement}
               className="h-12 w-12 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors"
             >
@@ -133,6 +135,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
             </button>
             <span className="text-2xl font-black text-white w-8 text-center">{quantity}</span>
             <button
+              aria-label={`Ajouter ${product.name}`}
               onClick={handleIncrement}
               disabled={loading}
               className="h-12 w-12 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center transition-colors disabled:opacity-50"
