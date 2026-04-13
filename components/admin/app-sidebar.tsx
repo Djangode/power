@@ -10,6 +10,7 @@ import {
   IconFileWord,
   IconInnerShadowTop,
   IconListDetails,
+  IconMail,
   IconReport,
   IconSearch,
   IconSettings,
@@ -100,6 +101,11 @@ const documents = [
     name: "Équipe",
     url: "/admin/team",
     icon: IconFileWord,
+  },
+  {
+    name: "Marketing",
+    url: "/admin/marketing",
+    icon: IconMail,
   },
 ]
 
