@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: 'Power - Primeur Frais à Alfortville & Livraison Île-de-France',
   description: 'Votre primeur spécialiste des produits frais, livrés chez vous en Île-de-France (94, 75, 92, 91). Retrouvez notre boutique à Alfortville / Vitry.',
   keywords: 'primeur, alfortville, vitry, fruits et légumes, livraison, ile de france, 94, 75, 92, 91',
+  verification: {
+    google: '1KOJaBLd_oa4Z8ePRSGeHxczLAFYL3s781AYso9Twfc',
+  },
   openGraph: {
     title: 'Power - Primeur Frais à Alfortville',
     description: 'Votre primeur de confiance en Île-de-France. Livraison de produits frais, fruits et légumes.',
