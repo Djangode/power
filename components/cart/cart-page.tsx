@@ -297,18 +297,10 @@ export default function CartPage() {
               )}
 
               <Button
-                onClick={handleCheckout}
-                disabled={isCheckingOut}
+                asChild
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] py-6 text-lg rounded-xl mt-4"
               >
-                {isCheckingOut ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Traitement...
-                  </>
-                ) : (
-                  "Procéder au paiement"
-                )}
+                <Link href="/commande">Passer commande</Link>
               </Button>
 
               <Button variant="outline" className="w-full bg-transparent border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl py-6" asChild>

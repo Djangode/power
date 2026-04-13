@@ -12,7 +12,8 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { getCartItems } from "@/app/actions/cart"
 import { getUserProfile } from "@/app/actions/account"
-import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock, User, Tag, X } from "lucide-react"
+import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock, User, Tag, X, Banknote, CreditCard } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 interface DeliveryInfo {
@@ -31,11 +32,13 @@ interface PromoResult {
 type DeliveryMethod = "livraison" | "retrait"
 
 export default function CommandePage() {
+  const router = useRouter()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("livraison")
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryInfo | null>(null)
   const [isCheckingOut, setIsCheckingOut] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card_on_delivery">("cash")
 
   // Promo code
   const [promoInput, setPromoInput] = useState("")
@@ -145,7 +148,7 @@ export default function CommandePage() {
     }
     try {
       setIsCheckingOut(true)
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/api/orders/place", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -156,17 +159,20 @@ export default function CommandePage() {
           deliveryCity: city,
           deliveryPostalCode: postalCode,
           promoCode: appliedPromo?.code || null,
-        })
+          paymentMethod,
+        }),
       })
       const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
+      if (data.success) {
+        toast.success("Commande confirmée !")
+        window.dispatchEvent(new Event("cart-updated"))
+        router.push(`/checkout/success?order_id=${data.orderId}`)
       } else {
-        toast.error(data.error || "Erreur lors de l'initialisation du paiement")
+        toast.error(data.error || "Erreur lors de la commande")
       }
     } catch (error) {
       console.error("Checkout error:", error)
-      toast.error("Impossible de procéder au paiement")
+      toast.error("Impossible de passer la commande")
     } finally {
       setIsCheckingOut(false)
     }
@@ -320,11 +326,11 @@ export default function CommandePage() {
                     </h3>
                     <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                       <p className="font-semibold text-white">Power — Primeur</p>
-                      <p className="text-sm text-zinc-400 mt-1">Adresse du magasin</p>
-                      <p className="text-sm text-zinc-400">97100 Guadeloupe</p>
+                      <p className="text-sm text-zinc-400 mt-1">114 Rue Paul Vaillant Couturier</p>
+                      <p className="text-sm text-zinc-400">94140 Alfortville</p>
                     </div>
                     <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
-                      <p className="text-sm text-orange-400 font-medium">Un code de retrait vous sera attribué après paiement.</p>
+                      <p className="text-sm text-orange-400 font-medium">Un code de retrait vous sera attribué après confirmation.</p>
                       <p className="text-xs text-zinc-400 mt-1">Présentez-le en magasin pour récupérer votre commande.</p>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -376,6 +382,39 @@ export default function CommandePage() {
                     )}
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Mode de paiement */}
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
+                  <Banknote className="h-4 w-4" /> Mode de paiement
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setPaymentMethod("cash")}
+                    className={`p-5 rounded-2xl border transition-all text-left ${
+                      paymentMethod === "cash"
+                        ? "border-orange-500 bg-orange-500/10"
+                        : "border-white/10 bg-white/5 hover:border-white/20"
+                    }`}
+                  >
+                    <Banknote className={`h-6 w-6 mb-2 ${paymentMethod === "cash" ? "text-orange-500" : "text-zinc-400"}`} />
+                    <p className="font-bold text-white">Espèces</p>
+                    <p className="text-xs text-zinc-400 mt-1">Payez en espèces à la réception</p>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod("card_on_delivery")}
+                    className={`p-5 rounded-2xl border transition-all text-left ${
+                      paymentMethod === "card_on_delivery"
+                        ? "border-orange-500 bg-orange-500/10"
+                        : "border-white/10 bg-white/5 hover:border-white/20"
+                    }`}
+                  >
+                    <CreditCard className={`h-6 w-6 mb-2 ${paymentMethod === "card_on_delivery" ? "text-orange-500" : "text-zinc-400"}`} />
+                    <p className="font-bold text-white">Carte bleue</p>
+                    <p className="text-xs text-zinc-400 mt-1">Payez par carte à la réception</p>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -453,7 +492,7 @@ export default function CommandePage() {
                         Traitement...
                       </>
                     ) : (
-                      "Procéder au paiement"
+                      `Confirmer — ${paymentMethod === "cash" ? "Espèces" : "CB"} à la ${deliveryMethod === "retrait" ? "réception" : "livraison"}`
                     )}
                   </Button>
                 </CardContent>

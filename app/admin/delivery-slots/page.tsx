@@ -29,6 +29,7 @@ export default function DeliverySlotsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [autoGenerating, setAutoGenerating] = useState(false)
 
   // Form fields
   const [formDate, setFormDate] = useState("")
@@ -129,23 +130,78 @@ export default function DeliverySlotsPage() {
     setShowForm(true)
   }
 
+  // Auto-génération des créneaux Mardi→Samedi, 9h-17h
+  const handleAutoGenerate = async () => {
+    if (!confirm("Générer automatiquement les créneaux Mardi→Samedi, 9h-17h pour les 4 prochaines semaines ?")) return
+    try {
+      setAutoGenerating(true)
+      const res = await fetch("/api/admin/delivery-slots/auto-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeksAhead: 4 }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`${data.created} créneaux créés ! (${data.skipped} déjà existants)`)
+        fetchSlots()
+      } else {
+        toast.error(data.error || "Erreur")
+      }
+    } catch {
+      toast.error("Erreur serveur")
+    } finally {
+      setAutoGenerating(false)
+    }
+  }
+
+  // Suppression de tous les créneaux futurs vides
+  const handleResetSlots = async () => {
+    if (!confirm("Supprimer tous les créneaux futurs SANS commande ? Les créneaux avec des commandes seront conservés.")) return
+    try {
+      const res = await fetch("/api/admin/delivery-slots/auto-generate", { method: "DELETE" })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`${data.deleted} créneaux supprimés`)
+        fetchSlots()
+      } else {
+        toast.error(data.error || "Erreur")
+      }
+    } catch {
+      toast.error("Erreur serveur")
+    }
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <CalendarDays className="h-6 w-6" /> Créneaux de Livraison
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">{slots.length} créneau(x) configuré(s)</p>
+              <p className="text-sm text-muted-foreground mt-1">{slots.length} créneau(x) configuré(s) — Mardi → Samedi, 9h-17h</p>
             </div>
-            <Button onClick={() => { resetForm(); setShowForm(!showForm) }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nouveau créneau
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={handleAutoGenerate}
+                disabled={autoGenerating}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {autoGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                Auto-Générer (4 sem.)
+              </Button>
+              <Button variant="destructive" onClick={handleResetSlots}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Reset
+              </Button>
+              <Button onClick={() => { resetForm(); setShowForm(!showForm) }} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Manuel
+              </Button>
+            </div>
           </div>
 
           {showForm && (
@@ -208,7 +264,7 @@ export default function DeliverySlotsPage() {
                 </div>
               ) : slots.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  Aucun créneau configuré. Créez-en un !
+                  Aucun créneau configuré. Cliquez sur "Auto-Générer" pour créer les créneaux automatiquement !
                 </div>
               ) : (
                 <Table>
