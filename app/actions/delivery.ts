@@ -4,11 +4,20 @@ import { prisma } from "@/lib/db"
 
 export async function getAvailableDeliverySlots(startDate: string, endDate: string) {
     try {
+        // Fenêtre couvrant toute(s) la(les) journée(s) demandée(s).
+        // Les créneaux sont stockés à minuit UTC ; on requête [début 00:00 UTC, fin 23:59:59 UTC]
+        // pour ne pas rater de créneau à cause d'une largeur de fenêtre nulle.
+        const start = new Date(`${startDate}T00:00:00.000Z`)
+        const end = new Date(`${endDate}T23:59:59.999Z`)
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return { success: false, data: [] }
+        }
+
         const slots = await prisma.deliverySlot.findMany({
             where: {
                 date: {
-                    gte: new Date(startDate),
-                    lte: new Date(endDate),
+                    gte: start,
+                    lte: end,
                 },
                 isActive: true,
             },

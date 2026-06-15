@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
       deliveryCity: order.deliveryCity,
       deliveryPostalCode: order.deliveryPostalCode,
       deliveryFee: order.deliveryFee,
+      discount: order.discount,
+      promoCode: order.promoCode,
       pickupCode: order.pickupCode,
       status: order.status,
       createdAt: order.createdAt.toISOString(),

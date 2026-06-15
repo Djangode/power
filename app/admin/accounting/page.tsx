@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
 import { SectionCards } from "@/components/admin/section-cards"
@@ -15,31 +15,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/admin/ui/input"
 import { Label } from "@/components/admin/ui/label"
 
-import { 
-  Calculator, 
-  FileText, 
-  Download, 
-  Upload, 
-  Plus, 
-  Fuel, 
-  Users, 
-  Home, 
+import {
+  Calculator,
+  FileText,
+  Download,
+  Plus,
+  Fuel,
+  Users,
+  Home,
   Zap,
-
-  AlertTriangle
+  Trash2,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react"
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react"
+import { getAccountingData, type AccountingData } from "@/app/actions/accounting"
 
 // Types
 interface Expense {
   id: string
-  type: 'fuel' | 'salary' | 'rent' | 'electricity' | 'invoice' | 'loss'
+  type: string
   description: string
   amount: number
   date: string
-  category: string
-  receipt?: string
-  employee?: string
+  category: string | null
+  createdAt: string
 }
 
 interface ProductProfit {
@@ -53,450 +53,528 @@ interface ProductProfit {
   totalCost: number
   profit: number
   margin: number
-  lossQuantity: number
-  lossValue: number
 }
 
-// Données d'exemple
-const expenses: Expense[] = [
-  {
-    id: "EXP-001",
-    type: "salary",
-    description: "Salaire Sophie - Juillet",
-    amount: 2100.00,
-    date: "2025-07-31",
-    category: "Personnel",
-    employee: "Sophie Préparatrice"
-  },
-  {
-    id: "EXP-002", 
-    type: "fuel",
-    description: "Gasoil livraison",
-    amount: 145.50,
-    date: "2025-07-05",
-    category: "Transport",
-    receipt: "ticket_gasoil_050725.pdf"
-  },
-  {
-    id: "EXP-003",
-    type: "rent",
-    description: "Loyer entrepôt - Juillet",
-    amount: 1800.00,
-    date: "2025-07-01",
-    category: "Immobilier"
-  },
-  {
-    id: "EXP-004",
-    type: "electricity",
-    description: "EDF - Juin",
-    amount: 320.45,
-    date: "2025-07-02",
-    category: "Énergie"
-  },
-  {
-    id: "EXP-005",
-    type: "invoice",
-    description: "Fournisseur fruits - Lot 15",
-    amount: 850.00,
-    date: "2025-07-03",
-    category: "Achats",
-    receipt: "facture_fruits_030725.pdf"
-  },
-  {
-    id: "EXP-006",
-    type: "loss",
-    description: "Destruction produits périmés",
-    amount: 125.80,
-    date: "2025-07-04",
-    category: "Pertes"
-  }
-]
+const EXPENSE_TYPE_LABELS: Record<string, string> = {
+  fuel: "Carburant",
+  salary: "Salaire",
+  rent: "Loyer",
+  electricity: "Électricité",
+  supply: "Facture Fournisseur",
+  invoice: "Facture Fournisseur",
+  loss: "Perte/Destruction",
+  other: "Autre",
+}
 
-const productProfits: ProductProfit[] = [
-  {
-    id: "PROD-001",
-    name: "Pommes Bio",
-    category: "Fruits",
-    soldQuantity: 150,
-    buyPrice: 2.80,
-    sellPrice: 4.20,
-    totalRevenue: 630.00,
-    totalCost: 420.00,
-    profit: 210.00,
-    margin: 33.3,
-    lossQuantity: 8,
-    lossValue: 22.40
-  },
-  {
-    id: "PROD-002",
-    name: "Carottes",
-    category: "Légumes", 
-    soldQuantity: 85,
-    buyPrice: 1.50,
-    sellPrice: 2.80,
-    totalRevenue: 238.00,
-    totalCost: 127.50,
-    profit: 110.50,
-    margin: 46.4,
-    lossQuantity: 5,
-    lossValue: 7.50
-  },
-  {
-    id: "PROD-003",
-    name: "Jus Orange",
-    category: "Jus",
-    soldQuantity: 45,
-    buyPrice: 3.20,
-    sellPrice: 5.50,
-    totalRevenue: 247.50,
-    totalCost: 144.00,
-    profit: 103.50,
-    margin: 41.8,
-    lossQuantity: 2,
-    lossValue: 6.40
+function getExpenseTypeLabel(type: string) {
+  return EXPENSE_TYPE_LABELS[type] || type
+}
+
+function getExpenseIcon(type: string) {
+  switch (type) {
+    case "fuel":
+      return <Fuel className="h-4 w-4 text-blue-500" />
+    case "salary":
+      return <Users className="h-4 w-4 text-green-500" />
+    case "rent":
+      return <Home className="h-4 w-4 text-purple-500" />
+    case "electricity":
+      return <Zap className="h-4 w-4 text-yellow-500" />
+    case "supply":
+    case "invoice":
+      return <FileText className="h-4 w-4 text-zinc-400" />
+    case "loss":
+      return <AlertTriangle className="h-4 w-4 text-red-500" />
+    default:
+      return <Calculator className="h-4 w-4 text-zinc-400" />
   }
-]
+}
+
+function formatEuro(value: number) {
+  return `€${value.toFixed(2)}`
+}
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString("fr-FR")
+  } catch {
+    return iso
+  }
+}
 
 export default function AccountingPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("month")
-  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [selectedPeriod, setSelectedPeriod] = useState<"month" | "year" | "all">("month")
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<AccountingData | null>(null)
+  const [expenses, setExpenses] = useState<Expense[]>([])
+
   const [newExpense, setNewExpense] = useState({
-    type: 'fuel' as const,
-    description: '',
-    amount: '',
-    category: '',
-    receipt: ''
+    type: "fuel",
+    description: "",
+    amount: "",
+    category: "",
+    date: new Date().toISOString().split("T")[0],
   })
 
-  // Calculs financiers
-  const totalRevenue = productProfits.reduce((sum, p) => sum + p.totalRevenue, 0)
-  const totalCosts = productProfits.reduce((sum, p) => sum + p.totalCost, 0)
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const totalLosses = productProfits.reduce((sum, p) => sum + p.lossValue, 0)
-  const netProfit = totalRevenue - totalCosts - totalExpenses - totalLosses
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [accounting, expensesRes] = await Promise.all([
+        getAccountingData(selectedPeriod),
+        fetch("/api/admin/expenses", { cache: "no-store" }),
+      ])
 
-  // Filtrer les dépenses
-  const filteredExpenses = expenses.filter(expense => 
-    selectedCategory === "all" || expense.category === selectedCategory
-  )
+      setData(accounting)
 
-  // Données pour SectionCards
+      if (expensesRes.ok) {
+        const list = (await expensesRes.json()) as Expense[]
+        setExpenses(Array.isArray(list) ? list : [])
+      } else {
+        setExpenses([])
+      }
+    } catch (e) {
+      console.error("Erreur chargement comptabilité:", e)
+      setError("Impossible de charger les données comptables.")
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedPeriod])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const handleAddExpense = async () => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: newExpense.type,
+          description: newExpense.description,
+          amount: newExpense.amount,
+          date: newExpense.date,
+          category: newExpense.category || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error || "Erreur lors de l'ajout de la charge.")
+        return
+      }
+
+      setIsAddExpenseModalOpen(false)
+      setNewExpense({
+        type: "fuel",
+        description: "",
+        amount: "",
+        category: "",
+        date: new Date().toISOString().split("T")[0],
+      })
+      await loadData()
+    } catch (e) {
+      console.error("Erreur ajout charge:", e)
+      setError("Erreur lors de l'ajout de la charge.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm("Supprimer cette charge ?")) return
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/expenses?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error || "Erreur lors de la suppression.")
+        return
+      }
+      await loadData()
+    } catch (e) {
+      console.error("Erreur suppression charge:", e)
+      setError("Erreur lors de la suppression.")
+    }
+  }
+
+  const exportToCsv = () => {
+    if (!data) return
+    const sep = ";"
+    const lines: string[] = []
+
+    // Section 1 : Charges
+    lines.push("CHARGES ET DÉPENSES")
+    lines.push(["Type", "Description", "Catégorie", "Date", "Montant (€)"].join(sep))
+    for (const e of expenses) {
+      lines.push(
+        [
+          getExpenseTypeLabel(e.type),
+          (e.description || "").replace(/[\r\n;]/g, " "),
+          (e.category || "").replace(/[\r\n;]/g, " "),
+          formatDate(e.date),
+          e.amount.toFixed(2),
+        ].join(sep)
+      )
+    }
+    lines.push("")
+
+    // Section 2 : Rentabilité par produit
+    lines.push("RENTABILITÉ PAR PRODUIT")
+    lines.push(
+      [
+        "Produit",
+        "Catégorie",
+        "Vendus",
+        "Prix Achat (€)",
+        "Prix Vente moyen (€)",
+        "CA (€)",
+        "Coût (€)",
+        "Profit (€)",
+        "Marge (%)",
+      ].join(sep)
+    )
+    for (const p of data.productProfits) {
+      lines.push(
+        [
+          (p.name || "").replace(/[\r\n;]/g, " "),
+          (p.category || "").replace(/[\r\n;]/g, " "),
+          String(p.soldQuantity),
+          p.buyPrice.toFixed(2),
+          p.sellPrice.toFixed(2),
+          p.totalRevenue.toFixed(2),
+          p.totalCost.toFixed(2),
+          p.profit.toFixed(2),
+          p.margin.toFixed(1),
+        ].join(sep)
+      )
+    }
+    lines.push("")
+
+    // Section 3 : Synthèse
+    lines.push("SYNTHÈSE")
+    lines.push(["Chiffre d'affaires", data.revenue.toFixed(2)].join(sep))
+    lines.push(["Coûts d'achats", data.purchaseCosts.toFixed(2)].join(sep))
+    lines.push(["Charges totales", data.expensesTotal.toFixed(2)].join(sep))
+    lines.push(["Bénéfice net", data.netProfit.toFixed(2)].join(sep))
+
+    const csv = "﻿" + lines.join("\r\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `comptabilite-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // Valeurs dérivées du state réel
+  const revenue = data?.revenue ?? 0
+  const purchaseCosts = data?.purchaseCosts ?? 0
+  const expensesTotal = data?.expensesTotal ?? 0
+  const netProfit = data?.netProfit ?? 0
+  const productProfits: ProductProfit[] = data?.productProfits ?? []
+  const expensesByCategory = data?.expensesByCategory ?? {}
+
+  const salariesTotal = expensesByCategory["salary"] ?? 0
+  const fixedCostsTotal = (expensesByCategory["rent"] ?? 0) + (expensesByCategory["electricity"] ?? 0)
+
   const statsData = [
     {
       title: "Chiffre d'Affaires",
-      value: `€${totalRevenue.toFixed(2)}`,
-      description: "Revenue total",
+      value: formatEuro(revenue),
+      description: "Commandes livrées (encaissées)",
       trend: {
-        value: "+12.5%",
+        value: "Réel",
         isPositive: true,
-        icon: IconTrendingUp
+        icon: IconTrendingUp,
       },
       footer: {
-        label: "vs mois précédent",
-        subtitle: "Performance solide"
-      }
+        label: "Sur la période sélectionnée",
+        subtitle: "Statut « livré »",
+      },
     },
     {
       title: "Charges Totales",
-      value: `€${totalExpenses.toFixed(2)}`,
-      description: "Toutes dépenses",
+      value: formatEuro(expensesTotal),
+      description: "Toutes dépenses enregistrées",
       trend: {
-        value: "+5.2%",
+        value: "Réel",
         isPositive: false,
-        icon: IconTrendingUp
+        icon: IconTrendingDown,
       },
       footer: {
-        label: "vs mois précédent",
-        subtitle: "Contrôle nécessaire"
-      }
+        label: "Sur la période sélectionnée",
+        subtitle: "Hors coûts d'achats",
+      },
     },
     {
       title: "Bénéfice Net",
-      value: `€${netProfit.toFixed(2)}`,
-      description: "Profit après charges",
+      value: formatEuro(netProfit),
+      description: "CA − achats − charges",
       trend: {
-        value: netProfit > 0 ? "+18.3%" : "-8.1%",
-        isPositive: netProfit > 0,
-        icon: netProfit > 0 ? IconTrendingUp : IconTrendingDown
+        value: netProfit >= 0 ? "Positif" : "Négatif",
+        isPositive: netProfit >= 0,
+        icon: netProfit >= 0 ? IconTrendingUp : IconTrendingDown,
       },
       footer: {
-        label: "vs mois précédent",
-        subtitle: netProfit > 0 ? "Excellent" : "À améliorer"
-      }
-    }
+        label: "Sur la période sélectionnée",
+        subtitle: netProfit >= 0 ? "Excédent" : "Déficit",
+      },
+    },
   ]
 
-  const handleAddExpense = () => {
-    const expense: Expense = {
-      id: `EXP-${Date.now()}`,
-      type: newExpense.type,
-      description: newExpense.description,
-      amount: parseFloat(newExpense.amount),
-      date: new Date().toISOString().split('T')[0],
-      category: newExpense.category,
-      receipt: newExpense.receipt || undefined
-    }
-    
-    expenses.push(expense)
-    setIsAddExpenseModalOpen(false)
-    setNewExpense({
-      type: 'fuel',
-      description: '',
-      amount: '',
-      category: '',
-      receipt: ''
-    })
-  }
-
-  const exportToExcel = () => {
-    // Logique d'export Excel (à implémenter avec une librairie)
-    alert("Export Excel en cours de développement...")
-  }
-
-  const getExpenseIcon = (type: string) => {
-    switch (type) {
-      case 'fuel': return <Fuel className="h-4 w-4 text-blue-600" />
-      case 'salary': return <Users className="h-4 w-4 text-green-600" />
-      case 'rent': return <Home className="h-4 w-4 text-purple-600" />
-      case 'electricity': return <Zap className="h-4 w-4 text-yellow-600" />
-      case 'invoice': return <FileText className="h-4 w-4 text-gray-600" />
-      case 'loss': return <AlertTriangle className="h-4 w-4 text-red-600" />
-      default: return <Calculator className="h-4 w-4" />
-    }
-  }
-
-  const getExpenseTypeLabel = (type: string) => {
-    const labels = {
-      fuel: 'Carburant',
-      salary: 'Salaire',
-      rent: 'Loyer',
-      electricity: 'Électricité',
-      invoice: 'Facture',
-      loss: 'Perte'
-    }
-    return labels[type as keyof typeof labels] || type
-  }
+  const periodLabel =
+    selectedPeriod === "month" ? "ce mois" : selectedPeriod === "year" ? "cette année" : "tout l'historique"
 
   return (
     <SidebarProvider
-      style={{
-        "--sidebar-width": "19rem",
-      } as React.CSSProperties}
+      style={
+        {
+          "--sidebar-width": "19rem",
+        } as React.CSSProperties
+      }
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-4 p-4 lg:p-6">
-            
             {/* Header */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h1 className="text-2xl font-bold">Comptabilité</h1>
-                <p className="text-muted-foreground">Gestion financière et export comptable</p>
+                <p className="text-muted-foreground">Gestion financière et export comptable — données réelles</p>
               </div>
-              
+
               <div className="flex items-center gap-2">
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <Select value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as "month" | "year" | "all")}>
                   <SelectTrigger className="w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="month">Ce mois</SelectItem>
-                    <SelectItem value="quarter">Ce trimestre</SelectItem>
                     <SelectItem value="year">Cette année</SelectItem>
+                    <SelectItem value="all">Tout</SelectItem>
                   </SelectContent>
                 </Select>
-                
-                <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700">
+
+                <Button
+                  onClick={exportToCsv}
+                  disabled={loading || !data}
+                  className="bg-orange-500 hover:bg-orange-600 text-black"
+                >
                   <Download className="h-4 w-4 mr-2" />
-                  Export Excel
+                  Exporter (CSV)
                 </Button>
               </div>
             </div>
 
-            {/* Stats Cards */}
-            <SectionCards data={statsData} />
-
-            {/* Résumé par catégories */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard
-                title="Coûts Achats"
-                value={`€${totalCosts.toFixed(2)}`}
-                description="coût des marchandises"
-                trend={{ value: "+3.1%", isPositive: false }}
-                footer={{
-                  label: "vs mois précédent",
-                  subtitle: "Matières premières"
-                }}
-              />
-              
-              <StatCard
-                title="Salaires"
-                value={`€${expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0).toFixed(2)}`}
-                description="charges personnel"
-                trend={{ value: "+2.5%", isPositive: false }}
-                footer={{
-                  label: "vs mois précédent",
-                  subtitle: "Masse salariale"
-                }}
-              />
-              
-              <StatCard
-                title="Charges Fixes"
-                value={`€${expenses.filter(e => ['rent', 'electricity'].includes(e.type)).reduce((sum, e) => sum + e.amount, 0).toFixed(2)}`}
-                description="loyer + énergie"
-                trend={{ value: "+1.2%", isPositive: false }}
-                footer={{
-                  label: "vs mois précédent",
-                  subtitle: "Frais généraux"
-                }}
-              />
-              
-              <StatCard
-                title="Pertes"
-                value={`€${totalLosses.toFixed(2)}`}
-                description="produits détruits"
-                trend={{ value: "-15.3%", isPositive: true }}
-                footer={{
-                  label: "vs mois précédent",
-                  subtitle: "En amélioration"
-                }}
-              />
-            </div>
-
-            {/* Actions et filtres */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex gap-2">
-                <Button onClick={() => setIsAddExpenseModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter Charge
-                </Button>
-                
-                <Button variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import Factures
-                </Button>
+            {error && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+                {error}
               </div>
-              
-              <div className="flex items-center gap-2">
-                <Label>Catégorie:</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toutes</SelectItem>
-                    <SelectItem value="Personnel">Personnel</SelectItem>
-                    <SelectItem value="Transport">Transport</SelectItem>
-                    <SelectItem value="Immobilier">Immobilier</SelectItem>
-                    <SelectItem value="Énergie">Énergie</SelectItem>
-                    <SelectItem value="Achats">Achats</SelectItem>
-                    <SelectItem value="Pertes">Pertes</SelectItem>
-                  </SelectContent>
-                </Select>
+            )}
+
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                <span>Chargement des données comptables…</span>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Stats Cards */}
+                <SectionCards data={statsData} />
 
-            {/* Tableau des charges */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Charges et Dépenses ({filteredExpenses.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Catégorie</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Montant</TableHead>
-                      <TableHead>Justificatif</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredExpenses.map((expense) => (
-                      <TableRow key={expense.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getExpenseIcon(expense.type)}
-                            <span className="font-medium">{getExpenseTypeLabel(expense.type)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{expense.description}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{expense.category}</Badge>
-                        </TableCell>
-                        <TableCell>{expense.date}</TableCell>
-                        <TableCell className="font-medium text-red-600">
-                          -{expense.amount.toFixed(2)}€
-                        </TableCell>
-                        <TableCell>
-                          {expense.receipt ? (
-                            <Button variant="outline" size="sm">
-                              <FileText className="h-4 w-4 mr-1" />
-                              Voir
-                            </Button>
-                          ) : (
-                            <span className="text-gray-400">Aucun</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                {/* Résumé par catégories */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard
+                    title="Coûts Achats"
+                    value={formatEuro(purchaseCosts)}
+                    description="coût des marchandises vendues"
+                    trend={{ value: "Réel", isPositive: false }}
+                    footer={{
+                      label: "Commandes livrées",
+                      subtitle: "Prix d'achat × quantités",
+                    }}
+                  />
 
-            {/* Tableau rentabilité par produit */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Rentabilité par Produit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produit</TableHead>
-                      <TableHead>Catégorie</TableHead>
-                      <TableHead>Vendus</TableHead>
-                      <TableHead>Prix Achat</TableHead>
-                      <TableHead>Prix Vente</TableHead>
-                      <TableHead>Marge</TableHead>
-                      <TableHead>Profit</TableHead>
-                      <TableHead>Pertes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {productProfits.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>{product.category}</TableCell>
-                        <TableCell>{product.soldQuantity}</TableCell>
-                        <TableCell>{product.buyPrice.toFixed(2)}€</TableCell>
-                        <TableCell>{product.sellPrice.toFixed(2)}€</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={product.margin > 40 ? 'default' : product.margin > 20 ? 'secondary' : 'destructive'}
-                          >
-                            {product.margin.toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={`font-medium ${product.profit > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {product.profit > 0 ? '+' : ''}{product.profit.toFixed(2)}€
-                        </TableCell>
-                        <TableCell className="text-red-600">
-                          -{product.lossValue.toFixed(2)}€
-                          <span className="text-xs text-gray-500 block">({product.lossQuantity} unités)</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                  <StatCard
+                    title="Salaires"
+                    value={formatEuro(salariesTotal)}
+                    description="charges personnel"
+                    trend={{ value: "Réel", isPositive: false }}
+                    footer={{
+                      label: "Charges de type « salaire »",
+                      subtitle: "Masse salariale",
+                    }}
+                  />
+
+                  <StatCard
+                    title="Charges Fixes"
+                    value={formatEuro(fixedCostsTotal)}
+                    description="loyer + énergie"
+                    trend={{ value: "Réel", isPositive: false }}
+                    footer={{
+                      label: "Loyer + électricité",
+                      subtitle: "Frais généraux",
+                    }}
+                  />
+
+                  <StatCard
+                    title="Bénéfice Net"
+                    value={formatEuro(netProfit)}
+                    description="résultat de la période"
+                    trend={{ value: netProfit >= 0 ? "Positif" : "Négatif", isPositive: netProfit >= 0 }}
+                    footer={{
+                      label: "CA − achats − charges",
+                      subtitle: netProfit >= 0 ? "Excédent" : "Déficit",
+                    }}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex gap-2">
+                    <Button onClick={() => setIsAddExpenseModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-black">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ajouter Charge
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Période : <span className="font-medium text-foreground">{periodLabel}</span>
+                  </div>
+                </div>
+
+                {/* Tableau des charges */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Charges et Dépenses ({expenses.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {expenses.length === 0 ? (
+                      <div className="py-12 text-center text-muted-foreground">
+                        Aucune charge enregistrée.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Catégorie</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Montant</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {expenses.map((expense) => (
+                            <TableRow key={expense.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {getExpenseIcon(expense.type)}
+                                  <span className="font-medium">{getExpenseTypeLabel(expense.type)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{expense.description}</TableCell>
+                              <TableCell>
+                                {expense.category ? (
+                                  <Badge variant="outline">{expense.category}</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>{formatDate(expense.date)}</TableCell>
+                              <TableCell className="font-medium text-red-500">
+                                -{expense.amount.toFixed(2)}€
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteExpense(expense.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Tableau rentabilité par produit */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rentabilité par Produit ({productProfits.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {productProfits.length === 0 ? (
+                      <div className="py-12 text-center text-muted-foreground">
+                        Aucune donnée sur la période.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Produit</TableHead>
+                            <TableHead>Catégorie</TableHead>
+                            <TableHead>Vendus</TableHead>
+                            <TableHead>Prix Achat</TableHead>
+                            <TableHead>Prix Vente</TableHead>
+                            <TableHead>Marge</TableHead>
+                            <TableHead>Profit</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {productProfits.map((product) => (
+                            <TableRow key={product.id}>
+                              <TableCell className="font-medium">{product.name}</TableCell>
+                              <TableCell>{product.category}</TableCell>
+                              <TableCell>{product.soldQuantity}</TableCell>
+                              <TableCell>{product.buyPrice.toFixed(2)}€</TableCell>
+                              <TableCell>{product.sellPrice.toFixed(2)}€</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    product.margin > 40
+                                      ? "default"
+                                      : product.margin > 20
+                                        ? "secondary"
+                                        : "destructive"
+                                  }
+                                >
+                                  {product.margin.toFixed(1)}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell
+                                className={`font-medium ${product.profit >= 0 ? "text-green-500" : "text-red-500"}`}
+                              >
+                                {product.profit >= 0 ? "+" : ""}
+                                {product.profit.toFixed(2)}€
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </div>
       </SidebarInset>
@@ -511,7 +589,10 @@ export default function AccountingPage() {
         <div className="space-y-4">
           <div>
             <Label>Type de charge</Label>
-            <Select value={newExpense.type} onValueChange={(value: any) => setNewExpense({...newExpense, type: value})}>
+            <Select
+              value={newExpense.type}
+              onValueChange={(value) => setNewExpense({ ...newExpense, type: value })}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -520,55 +601,66 @@ export default function AccountingPage() {
                 <SelectItem value="salary">Salaire</SelectItem>
                 <SelectItem value="rent">Loyer</SelectItem>
                 <SelectItem value="electricity">Électricité</SelectItem>
-                <SelectItem value="invoice">Facture Fournisseur</SelectItem>
+                <SelectItem value="supply">Facture Fournisseur</SelectItem>
                 <SelectItem value="loss">Perte/Destruction</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          
+
           <div>
             <Label>Description</Label>
             <Input
               value={newExpense.description}
-              onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
+              onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
               placeholder="Description de la charge"
             />
           </div>
-          
+
           <div>
             <Label>Montant (€)</Label>
             <Input
               type="number"
               step="0.01"
+              min="0"
               value={newExpense.amount}
-              onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
+              onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
               placeholder="0.00"
             />
           </div>
-          
+
           <div>
-            <Label>Catégorie</Label>
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={newExpense.date}
+              onChange={(e) => setNewExpense({ ...newExpense, date: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <Label>Catégorie (optionnel)</Label>
             <Input
               value={newExpense.category}
-              onChange={(e) => setNewExpense({...newExpense, category: e.target.value})}
+              onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
               placeholder="Personnel, Transport, etc."
             />
           </div>
-          
-          <div>
-            <Label>Justificatif (optionnel)</Label>
-            <Input
-              type="file"
-              accept=".pdf,.jpg,.png"
-              onChange={(e) => setNewExpense({...newExpense, receipt: e.target.files?.[0]?.name || ''})}
-            />
-          </div>
-          
+
           <div className="flex gap-2">
-            <Button onClick={handleAddExpense} className="flex-1">
-              Ajouter
+            <Button
+              onClick={handleAddExpense}
+              disabled={submitting}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-black"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ajouter"}
             </Button>
-            <Button variant="outline" onClick={() => setIsAddExpenseModalOpen(false)} className="flex-1">
+            <Button
+              variant="outline"
+              onClick={() => setIsAddExpenseModalOpen(false)}
+              disabled={submitting}
+              className="flex-1"
+            >
               Annuler
             </Button>
           </div>

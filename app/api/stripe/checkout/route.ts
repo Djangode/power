@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import Stripe from "stripe"
 import { prisma } from "@/lib/db"
+import { cartItemUnitPrice, collectIngredientIds } from "@/lib/pricing"
+import { parseDeliveryDate } from "@/lib/utils"
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json().catch(() => ({}))
-        const { deliveryMethod, deliveryDate, deliveryTime, deliveryAddress, deliveryCity, deliveryPostalCode, promoCode } = body
+        const { deliveryMethod, deliveryDate, deliveryTime, deliverySlotId, deliveryAddress, deliveryCity, deliveryPostalCode, phone, promoCode } = body
 
         // Récupération du panier dynamique de l'utilisateur
         const cartItems = await prisma.cartItem.findMany({
@@ -37,16 +39,53 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
         }
 
-        // Calculer le total et préparer les items pour la commande
+        // Vérification de la disponibilité du stock AVANT de créer la commande / la session de paiement
+        for (const item of cartItems) {
+            if (item.productId && item.product) {
+                if (!item.product.inStock || item.product.currentStock < item.quantity) {
+                    return NextResponse.json(
+                        { error: `Stock insuffisant pour « ${item.product.name} » (${Math.max(0, item.product.currentStock)} restant${item.product.currentStock > 1 ? "s" : ""}).` },
+                        { status: 409 }
+                    )
+                }
+            }
+        }
+
+        // Vérifier la disponibilité du créneau de livraison choisi (réservation effective au webhook)
+        if (deliverySlotId) {
+            const slot = await prisma.deliverySlot.findUnique({ where: { id: deliverySlotId } })
+            if (!slot || !slot.isActive) {
+                return NextResponse.json({ error: "Le créneau de livraison choisi n'est plus disponible." }, { status: 409 })
+            }
+            if (slot.currentOrders >= slot.maxOrders) {
+                return NextResponse.json({ error: "Ce créneau de livraison est complet. Veuillez en choisir un autre." }, { status: 409 })
+            }
+        }
+
+        // Prix actuels des produits-ingrédients (recalcul serveur des compositions = anti-fraude)
+        const ingredientIds = collectIngredientIds(cartItems)
+        const ingredientPrices = new Map<string, number>()
+        if (ingredientIds.length) {
+            const ingProducts = await prisma.product.findMany({
+                where: { id: { in: ingredientIds } },
+                select: { id: true, price: true },
+            })
+            for (const p of ingProducts) ingredientPrices.set(p.id, p.price)
+        }
+
+        // Calculer le total et préparer les items — prix unitaire recalculé côté serveur
         let subtotal = 0
+        const unitPriceById = new Map<string, number>()
         const orderItemsData = cartItems.map(item => {
-            const price = item.productId ? item.product!.price : item.composition!.basePrice
-            subtotal += price * item.quantity
+            const unitPrice = cartItemUnitPrice(item, ingredientPrices)
+            unitPriceById.set(item.id, unitPrice)
+            subtotal += unitPrice * item.quantity
             return {
                 productId: item.productId || null,
                 compositionId: item.compositionId || null,
                 quantity: item.quantity,
-                priceAtPurchase: price
+                priceAtPurchase: unitPrice,
+                customData: item.customData ?? undefined
             }
         })
 
@@ -72,12 +111,8 @@ export async function POST(req: NextRequest) {
                 promoDiscount = Math.min(promoDiscount, subtotal)
                 promoDiscount = Math.round(promoDiscount * 100) / 100
                 validPromoCode = promo.code
-
-                // Incrémenter le compteur d'utilisation (atomique pour éviter les race conditions)
-                await prisma.promoCode.update({
-                    where: { id: promo.id },
-                    data: { currentUses: { increment: 1 } }
-                })
+                // NB: currentUses est incrémenté par le webhook Stripe UNIQUEMENT au paiement
+                // confirmé, pour ne pas comptabiliser les sessions de paiement abandonnées.
             }
         }
 
@@ -108,11 +143,12 @@ export async function POST(req: NextRequest) {
                 status: "pending",
                 deliveryMethod: deliveryMethod || "livraison",
                 deliveryFee,
-                deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+                deliveryDate: parseDeliveryDate(deliveryDate),
                 deliverySlot: deliveryTime || null,
                 deliveryAddress: isDelivery ? finalAddress : null,
                 deliveryCity: isDelivery ? finalCity : null,
                 deliveryPostalCode: isDelivery ? finalPostalCode : null,
+                phone: phone || null,
                 pickupCode: deliveryMethod === "retrait" ? generatePickupCode() : null,
                 promoCode: validPromoCode,
                 discount: promoDiscount,
@@ -126,7 +162,7 @@ export async function POST(req: NextRequest) {
         const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItems.map(item => {
             const name = item.productId ? item.product!.name : item.composition!.name
             const image = item.productId ? item.product!.image : item.composition!.imageUrl
-            const price = item.productId ? item.product!.price : item.composition!.basePrice
+            const price = unitPriceById.get(item.id) ?? cartItemUnitPrice(item, ingredientPrices)
 
             return {
                 quantity: item.quantity,
@@ -176,7 +212,8 @@ export async function POST(req: NextRequest) {
             cancel_url: `${origin}/panier`,
             metadata: {
                 orderId: order.id,
-                userId: session.user.id
+                userId: session.user.id,
+                deliverySlotId: deliverySlotId || ""
             }
         })
 

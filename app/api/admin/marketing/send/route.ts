@@ -58,17 +58,20 @@ export async function POST(req: NextRequest) {
                 : `${promoValue}% de réduction`
         }
 
-        // Récupérer tous les clients (role "user" uniquement)
+        // RGPD : n'envoyer qu'aux clients ayant explicitement consenti (newsletter OU promotions)
         const customers = await prisma.user.findMany({
             where: {
                 role: "user",
                 isActive: true,
+                preferences: {
+                    OR: [{ promotions: true }, { newsletter: true }],
+                },
             },
             select: { email: true }
         })
 
         if (customers.length === 0) {
-            return NextResponse.json({ error: "Aucun client à contacter" }, { status: 400 })
+            return NextResponse.json({ error: "Aucun client n'a consenti à recevoir des emails marketing (newsletter ou promotions)." }, { status: 400 })
         }
 
         // Construire le HTML du message

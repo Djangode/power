@@ -39,6 +39,7 @@ interface Product {
   supplier?: string | null
   origin?: string | null
   purchasePrice?: number | null
+  categoryId?: string
 }
 
 interface Composition {
@@ -235,7 +236,7 @@ export default function ProductsPage() {
     if (type === "product") {
       setProductForm({ name: "", description: "", price: "", unit: "kg", categoryId: "", image: "", organic: false, supplier: "", origin: "", purchasePrice: "", currentStock: "0", minimumStock: "10" })
     } else {
-      setCompositionForm({ name: "", type: "", description: "", basePrice: "", imageUrl: "" })
+      setCompositionForm({ name: "", type: "jus", description: "", basePrice: "", imageUrl: "" })
       setTypeSearch("")
     }
     setShowCreateModal(true)
@@ -250,7 +251,7 @@ export default function ProductsPage() {
       description: product.description || "",
       price: String(product.selling_price),
       unit: product.unit,
-      categoryId: "",
+      categoryId: product.categoryId || "",
       image: product.image_url || "",
       organic: product.is_organic,
       supplier: product.supplier || "",
@@ -312,6 +313,9 @@ export default function ProductsPage() {
         if (res.ok) {
           setShowCreateModal(false)
           loadAll()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          alert(err.error || "Erreur lors de l'enregistrement du produit")
         }
       } else {
         if (!compositionForm.name || !compositionForm.basePrice) {
@@ -328,6 +332,9 @@ export default function ProductsPage() {
         if (res.ok) {
           setShowCreateModal(false)
           loadAll()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          alert(err.error || "Erreur lors de l'enregistrement de la composition")
         }
       }
     } catch (error) { console.error("Erreur:", error) }
@@ -335,11 +342,16 @@ export default function ProductsPage() {
   }
 
   const getStatusBadge = (product: Product) => {
-    if (product.status === "out_of_stock" || product.current_stock === 0)
-      return <Badge variant="destructive">Rupture</Badge>
-    if (product.status === "active")
-      return <Badge className="bg-green-600">En ligne</Badge>
-    return <Badge variant="secondary">Hors ligne</Badge>
+    switch (product.status) {
+      case "inactive":
+        return <Badge variant="secondary">Hors ligne</Badge>
+      case "out_of_stock":
+        return <Badge variant="destructive">Rupture</Badge>
+      case "low_stock":
+        return <Badge className="bg-amber-500">Stock bas</Badge>
+      default:
+        return <Badge className="bg-green-600">En ligne</Badge>
+    }
   }
 
   const getCompositionTypeBadge = (type: string) => {
@@ -459,8 +471,8 @@ export default function ProductsPage() {
                                 <DropdownMenuItem onClick={() => openEditProduct(product)}>
                                   <Edit className="h-4 w-4 mr-2" /> Modifier
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => updateProductStatus(product.id, product.status === "active" ? "inactive" : "active")}>
-                                  {product.status === "active" ? <><EyeOff className="h-4 w-4 mr-2" /> Hors ligne</> : <><Eye className="h-4 w-4 mr-2" /> En ligne</>}
+                                <DropdownMenuItem onClick={() => updateProductStatus(product.id, product.status !== "inactive" ? "inactive" : "active")}>
+                                  {product.status !== "inactive" ? <><EyeOff className="h-4 w-4 mr-2" /> Mettre hors ligne</> : <><Eye className="h-4 w-4 mr-2" /> Mettre en ligne</>}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => updateStock(product.id, product.current_stock + 10)}>
                                   <Package className="h-4 w-4 mr-2" /> +10 Stock
@@ -711,36 +723,21 @@ export default function ProductsPage() {
                 <Label>Nom *</Label>
                 <Input value={compositionForm.name} onChange={(e) => setCompositionForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Jus Détox Vert" />
               </div>
-              <div className="relative">
+              <div>
                 <Label>Type *</Label>
-                <Input
-                  value={typeSearch || compositionForm.type}
-                  onChange={(e) => {
-                    setTypeSearch(e.target.value)
-                    setCompositionForm(f => ({ ...f, type: e.target.value }))
-                    setShowTypeSuggestions(true)
-                  }}
-                  onFocus={() => setShowTypeSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowTypeSuggestions(false), 200)}
-                  placeholder="Tapez un type (jus, soupe, bowl, smoothie...)"
-                />
-                {showTypeSuggestions && filteredTypes.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                    {filteredTypes.map(t => (
-                      <button
-                        key={t}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                        onMouseDown={() => {
-                          setCompositionForm(f => ({ ...f, type: t }))
-                          setTypeSearch(t)
-                          setShowTypeSuggestions(false)
-                        }}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <select
+                  value={compositionForm.type}
+                  onChange={(e) => setCompositionForm(f => ({ ...f, type: e.target.value }))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="jus">Jus</option>
+                  <option value="soupe">Soupe</option>
+                  <option value="legumes-decoupes">Légumes découpés</option>
+                  <option value="fruits-decoupes">Fruits découpés</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Détermine la page boutique : Jus/Soupe → « Jus & Soupes », Découpés → « Découpés ».
+                </p>
               </div>
               <div>
                 <Label>Description</Label>

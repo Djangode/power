@@ -41,7 +41,7 @@ function generateInvoiceHTML(order: any, user: any) {
           <div>
             <h1 style="font-size: 28px; font-weight: 900; color: #f97316; margin: 0;">POWER</h1>
             <p style="color: #666; margin: 4px 0 0;">Primeur — Produits frais & locaux</p>
-            <p style="color: #666; margin: 2px 0;">97100 Guadeloupe</p>
+            <p style="color: #666; margin: 2px 0;">114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
           </div>
           <div style="text-align: right;">
             <h2 style="font-size: 24px; font-weight: 900; margin: 0; color: #111;">FACTURE</h2>
@@ -88,6 +88,10 @@ function generateInvoiceHTML(order: any, user: any) {
               <span>Livraison</span>
               <span>${deliveryFee === 0 ? "Gratuit" : deliveryFee.toFixed(2) + " €"}</span>
             </div>
+            ${order.discount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 8px 0; color: #16a34a;">
+              <span>Remise${order.promoCode ? ` (${order.promoCode})` : ""}</span>
+              <span>-${order.discount.toFixed(2)} €</span>
+            </div>` : ""}
             <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 2px solid #111; font-size: 18px; font-weight: 900;">
               <span>Total TTC</span>
               <span style="color: #f97316;">${order.total.toFixed(2)} €</span>
@@ -97,7 +101,7 @@ function generateInvoiceHTML(order: any, user: any) {
 
         <!-- Footer -->
         <div style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #999; font-size: 12px; text-align: center;">
-          <p>Power — Primeur | 97100 Guadeloupe</p>
+          <p>Power — Primeur | 114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
           <p>Merci pour votre confiance !</p>
         </div>
       </div>

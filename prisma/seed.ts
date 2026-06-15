@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaNeonHttp } from '@prisma/adapter-neon'
+import bcrypt from 'bcryptjs'
 
 const url = (process.env.DATABASE_URL || '').replace(/&channel_binding=[^&]*/g, '')
 console.log('DB URL:', url.substring(0, 40) + '...')
@@ -144,6 +145,106 @@ async function main() {
     }
 
     console.log('✅ FAQ créée')
+
+    // Articles de blog (idempotent — créés seulement si la table est vide)
+    if ((await prisma.blogPost.count()) === 0) {
+        const blogData = [
+            {
+                title: 'Les bienfaits des fruits de saison',
+                excerpt: 'Pourquoi privilégier les fruits de saison change tout pour votre santé et la planète.',
+                content: "Manger de saison, c'est consommer des fruits cueillis à maturité, au moment où ils sont les plus riches en vitamines et en saveurs.\n\nEn plus d'être meilleurs au goût, les produits de saison sont moins chers et limitent l'empreinte carbone liée au transport. Chez Power, nous sélectionnons chaque matin les meilleurs fruits auprès de producteurs locaux.\n\nFraises au printemps, pêches en été, pommes en automne : laissez-vous guider par le calendrier de la nature !",
+                author: 'Equipe Power',
+                category: 'Conseils',
+                imageUrl: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800',
+                published: true,
+            },
+            {
+                title: 'Comment conserver ses légumes plus longtemps',
+                excerpt: 'Nos astuces simples pour réduire le gaspillage et garder vos légumes frais plus longtemps.',
+                content: "Le gaspillage alimentaire commence souvent à la maison. Voici quelques gestes simples pour conserver vos légumes plus longtemps.\n\nLes herbes fraîches se conservent dans un verre d'eau au réfrigérateur. Les pommes de terre et oignons préfèrent un endroit sombre et sec. Les tomates, elles, n'aiment pas le froid : laissez-les à température ambiante.\n\nUn bon stockage, c'est moins de gaspillage et plus d'économies !",
+                author: 'Equipe Power',
+                category: 'Astuces',
+                imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800',
+                published: true,
+            },
+            {
+                title: 'Rencontre avec nos producteurs locaux',
+                excerpt: 'Partez à la rencontre des femmes et des hommes qui cultivent vos fruits et légumes.',
+                content: "Derrière chaque produit Power, il y a un producteur passionné. Cette semaine, nous vous emmenons à la ferme des Quatre Saisons, à quelques kilomètres de notre entrepôt.\n\nIci, on cultive dans le respect des sols et des saisons, sans pesticides de synthèse. La qualité prime sur la quantité, et cela se ressent dans chaque bouchée.\n\nSoutenir les circuits courts, c'est soutenir une agriculture plus durable et plus juste.",
+                author: 'Equipe Power',
+                category: 'Producteurs',
+                imageUrl: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800',
+                published: true,
+            },
+        ]
+        for (const b of blogData) {
+            await prisma.blogPost.create({ data: b })
+        }
+        console.log('✅ Articles de blog créés')
+    }
+
+    // Recettes (idempotent — créées seulement si la table est vide)
+    if ((await prisma.recipe.count()) === 0) {
+        const recipeData = [
+            {
+                title: 'Ratatouille provençale',
+                description: 'Un classique du Sud, mijoté avec des légumes frais et de l\'huile d\'olive.',
+                content: "Ingrédients :\n- 2 courgettes\n- 1 aubergine\n- 2 poivrons\n- 4 tomates\n- 1 oignon\n- 2 gousses d'ail\n- Huile d'olive, thym, basilic\n\nPréparation :\n1. Découpez tous les légumes en dés.\n2. Faites revenir l'oignon et l'ail dans l'huile d'olive.\n3. Ajoutez les poivrons, puis l'aubergine et les courgettes.\n4. Incorporez les tomates et les herbes, puis laissez mijoter 40 minutes à feu doux.\n5. Servez chaud ou froid.",
+                duration: '50 min',
+                difficulty: 'Facile',
+                imageUrl: 'https://images.unsplash.com/photo-1572453800999-e8d2d1589b7c?w=800',
+            },
+            {
+                title: 'Smoothie détox vert',
+                description: 'Un boost de vitamines pour bien commencer la journée.',
+                content: "Ingrédients :\n- 1 pomme verte\n- 1/2 concombre\n- Quelques feuilles de menthe\n- Le jus d'un citron\n- 200 ml d'eau\n\nPréparation :\n1. Lavez et découpez les fruits et légumes.\n2. Mettez tous les ingrédients dans un blender.\n3. Mixez jusqu'à obtenir une texture lisse.\n4. Dégustez immédiatement, bien frais.",
+                duration: '10 min',
+                difficulty: 'Très facile',
+                imageUrl: 'https://images.unsplash.com/photo-1610970881699-44a5587cabec?w=800',
+            },
+            {
+                title: 'Velouté de potimarron',
+                description: 'Doux et réconfortant, parfait pour les soirées d\'automne.',
+                content: "Ingrédients :\n- 1 potimarron\n- 1 oignon\n- 1 pomme de terre\n- 50 cl de bouillon de légumes\n- 10 cl de crème\n- Muscade, sel, poivre\n\nPréparation :\n1. Découpez le potimarron, la pomme de terre et l'oignon.\n2. Faites revenir l'oignon, puis ajoutez les autres légumes.\n3. Versez le bouillon et laissez cuire 25 minutes.\n4. Mixez, ajoutez la crème et la muscade.\n5. Servez bien chaud.",
+                duration: '40 min',
+                difficulty: 'Facile',
+                imageUrl: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=800',
+            },
+        ]
+        for (const r of recipeData) {
+            await prisma.recipe.create({ data: r })
+        }
+        console.log('✅ Recettes créées')
+    }
+
+    // Partenaires (idempotent — créés seulement si la table est vide)
+    if ((await prisma.partner.count()) === 0) {
+        const partnerData = [
+            { name: 'Ferme des Quatre Saisons', logoUrl: null, isActive: true },
+            { name: 'Vergers du Soleil', logoUrl: null, isActive: true },
+            { name: 'Maraîchers du Terroir', logoUrl: null, isActive: true },
+        ]
+        for (const p of partnerData) {
+            await prisma.partner.create({ data: p })
+        }
+        console.log('✅ Partenaires créés')
+    }
+
+    // Compte administrateur (idempotent — ne réinitialise PAS le mot de passe d'un admin existant)
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@powerprimeur.com'
+    const adminPassword = process.env.ADMIN_PASSWORD || 'ChangeMoi123!'
+    await prisma.user.upsert({
+        where: { email: adminEmail },
+        update: { role: 'admin', isActive: true },
+        create: {
+            email: adminEmail,
+            password: await bcrypt.hash(adminPassword, 10),
+            firstName: 'Admin',
+            lastName: 'Power',
+            role: 'admin',
+        },
+    })
+    console.log(`✅ Admin prêt : ${adminEmail}`)
 
     console.log('🎉 Seed terminé avec succès !')
 }

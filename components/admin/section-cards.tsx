@@ -15,7 +15,7 @@ interface StatCardData {
   title: string
   value: string | number
   description: string
-  trend: {
+  trend?: {
     value: string
     isPositive: boolean
     icon?: Icon
@@ -41,20 +41,22 @@ export function SectionCards({ data }: StatsCardsProps) {
               {stat.value}
             </CardTitle>
             <CardAction>
-              <Badge variant="outline" className={stat.trend.isPositive ? "text-green-600" : "text-red-600"}>
-                {stat.trend.isPositive ? <IconTrendingUp /> : <IconTrendingDown />}
-                {stat.trend.value}
-              </Badge>
+              {stat.trend && (
+                <Badge variant="outline" className={stat.trend.isPositive ? "text-green-600" : "text-red-600"}>
+                  {stat.trend.isPositive ? <IconTrendingUp /> : <IconTrendingDown />}
+                  {stat.trend.value}
+                </Badge>
+              )}
             </CardAction>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm">
             <div className="line-clamp-1 flex gap-2 font-medium">
               {stat.footer.label}
-              {stat.trend.isPositive ? (
+              {stat.trend && (stat.trend.isPositive ? (
                 <IconTrendingUp className="size-4" />
               ) : (
                 <IconTrendingDown className="size-4" />
-              )}
+              ))}
             </div>
             <div className="text-muted-foreground">
               {stat.footer.subtitle}

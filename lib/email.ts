@@ -53,7 +53,8 @@ export async function sendOrderConfirmation(email: string, orderId: string, tota
       <h2 style="margin: 0 0 8px; font-size: 24px; font-weight: 900; color: #fff;">Commande confirmée !</h2>
       <p style="margin: 0 0 24px; font-size: 15px; color: #999; line-height: 1.5;">
         Merci pour votre commande <strong style="color: #f97316;">${orderNumber}</strong>.
-        Votre paiement de <strong style="color: #fff;">${total.toFixed(2)}€</strong> a été validé.
+        Votre commande de <strong style="color: #fff;">${total.toFixed(2)}€</strong> est enregistrée.
+        Le règlement s'effectuera <strong style="color: #fff;">${isPickup ? "au retrait en magasin" : "à la livraison"}</strong> (espèces ou carte).
       </p>
 
       ${pickupSection}
@@ -84,6 +85,143 @@ export async function sendOrderConfirmation(email: string, orderId: string, tota
     return { success: true }
   } catch (error) {
     console.error("Erreur Resend:", error)
+    return { success: false, error }
+  }
+}
+
+/**
+ * Notification interne envoyée à la société à chaque nouvelle commande.
+ * Récapitule client, mode de réception, créneau/adresse, code retrait et articles.
+ */
+export async function sendNewOrderToCompany(
+  to: string,
+  order: {
+    orderId: string
+    orderNumber: string
+    customerName: string
+    customerEmail: string
+    customerPhone?: string | null
+    total: number
+    deliveryMethod?: string | null
+    deliveryDate?: Date | string | null
+    deliverySlot?: string | null
+    address?: { line?: string | null; city?: string | null; postalCode?: string | null } | null
+    pickupCode?: string | null
+    items: { name: string; quantity: number; price: number }[]
+  },
+) {
+  try {
+    const isPickup = order.deliveryMethod === "retrait"
+    const modeLabel = isPickup ? "Retrait en magasin" : "Livraison"
+
+    const formatDate = (d?: Date | string | null) => {
+      if (!d) return null
+      const date = d instanceof Date ? d : new Date(d)
+      if (Number.isNaN(date.getTime())) return typeof d === "string" ? d : null
+      return date.toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Europe/Paris",
+      })
+    }
+    const dateLabel = formatDate(order.deliveryDate)
+
+    const addressLines = order.address
+      ? [order.address.line, [order.address.postalCode, order.address.city].filter(Boolean).join(" ")]
+          .filter((l) => l && l.trim())
+          .join(", ")
+      : ""
+
+    const deliveryDetails = isPickup
+      ? `
+        <p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Mode :</strong> ${modeLabel}</p>
+        ${dateLabel ? `<p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Date souhaitée :</strong> ${dateLabel}</p>` : ""}
+        ${order.deliverySlot ? `<p style="margin: 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Créneau :</strong> ${order.deliverySlot}</p>` : ""}
+      `
+      : `
+        <p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Mode :</strong> ${modeLabel}</p>
+        ${dateLabel ? `<p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Date :</strong> ${dateLabel}</p>` : ""}
+        ${order.deliverySlot ? `<p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Créneau :</strong> ${order.deliverySlot}</p>` : ""}
+        ${addressLines ? `<p style="margin: 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Adresse :</strong> ${addressLines}</p>` : ""}
+      `
+
+    const pickupSection = isPickup && order.pickupCode
+      ? `
+      <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-radius: 12px; padding: 16px; text-align: center; margin: 20px 0;">
+        <p style="margin: 0 0 4px; font-size: 11px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 2px;">Code de retrait</p>
+        <p style="margin: 0; font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 8px;">${order.pickupCode}</p>
+      </div>
+    `
+      : ""
+
+    const itemsRows = order.items
+      .map(
+        (item) => `
+      <tr>
+        <td style="padding: 8px 0; color: #ccc; font-size: 13px; border-bottom: 1px solid #222;">${item.name}</td>
+        <td style="padding: 8px 0; color: #999; font-size: 13px; text-align: center; border-bottom: 1px solid #222;">x${item.quantity}</td>
+        <td style="padding: 8px 0; color: #fff; font-size: 13px; text-align: right; border-bottom: 1px solid #222;">${(item.price * item.quantity).toFixed(2)}€</td>
+      </tr>
+    `,
+      )
+      .join("")
+
+    const content = `
+      <h2 style="margin: 0 0 8px; font-size: 24px; font-weight: 900; color: #fff;">Nouvelle commande</h2>
+      <p style="margin: 0 0 20px; font-size: 15px; color: #999;">
+        Commande <strong style="color: #f97316;">${order.orderNumber}</strong> à préparer.
+      </p>
+
+      <div style="background: #1a1a1a; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0 0 8px; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Client</p>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Nom :</strong> ${order.customerName}</p>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Email :</strong> ${order.customerEmail || "—"}</p>
+        <p style="margin: 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Téléphone :</strong> ${order.customerPhone || "—"}</p>
+      </div>
+
+      <div style="background: #1a1a1a; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0 0 8px; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Réception</p>
+        ${deliveryDetails}
+      </div>
+
+      ${pickupSection}
+
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding: 8px 0; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333;">Produit</th>
+            <th style="text-align: center; padding: 8px 0; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333;">Qté</th>
+            <th style="text-align: right; padding: 8px 0; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+
+      <div style="background: #1a1a1a; border-radius: 12px; padding: 16px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 16px; font-weight: 900; color: #fff;">Total</span>
+        <span style="font-size: 22px; font-weight: 900; color: #f97316;">${order.total.toFixed(2)}€</span>
+      </div>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${APP_URL}/admin/orders" style="display: inline-block; background: #f97316; color: #fff; padding: 14px 32px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 14px;">
+          Voir dans l'admin
+        </a>
+      </div>
+    `
+
+    await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Nouvelle commande ${order.orderNumber}`,
+      html: emailWrapper(content),
+    })
+    return { success: true }
+  } catch (error) {
+    console.error("Erreur notification commande société:", error)
     return { success: false, error }
   }
 }

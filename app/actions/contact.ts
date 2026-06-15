@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { z } from "zod"
+import { sendContactNotification } from "@/lib/email"
 
 const contactSchema = z.object({
     name: z.string().min(1, "Le nom est requis"),
@@ -21,6 +22,14 @@ export async function submitContactForm(data: z.infer<typeof contactSchema>) {
         await prisma.contactMessage.create({
             data: parsed.data
         })
+
+        // Notifier l'équipe par email (best-effort : ne bloque pas la confirmation client)
+        await sendContactNotification(
+            parsed.data.name,
+            parsed.data.email,
+            parsed.data.subject || "",
+            parsed.data.message,
+        ).catch((e) => console.error("Notification contact échouée:", e))
 
         return { success: true }
     } catch (error) {

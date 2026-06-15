@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
-import { sendOrderConfirmation } from "@/lib/email"
+import { sendOrderConfirmation, sendNewOrderToCompany } from "@/lib/email"
+import { cartItemUnitPrice, collectIngredientIds, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { parseDeliveryDate } from "@/lib/utils"
+import { getDeliveryConfig, getOrderNotificationEmail } from "@/app/actions/content"
 
 function generatePickupCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -23,9 +26,11 @@ export async function POST(req: NextRequest) {
             deliveryMethod,
             deliveryDate,
             deliveryTime,
+            deliverySlotId,
             deliveryAddress,
             deliveryCity,
             deliveryPostalCode,
+            phone,
             promoCode,
             paymentMethod, // "cash" ou "card_on_delivery"
         } = body
@@ -47,16 +52,53 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Votre panier est vide" }, { status: 400 })
         }
 
-        // Calcul du total
+        // Vérification de la disponibilité du stock AVANT de créer la commande
+        for (const item of cartItems) {
+            if (item.productId && item.product) {
+                if (!item.product.inStock || item.product.currentStock < item.quantity) {
+                    return NextResponse.json(
+                        {
+                            error: `Stock insuffisant pour « ${item.product.name} » (${Math.max(0, item.product.currentStock)} restant${item.product.currentStock > 1 ? "s" : ""}).`,
+                        },
+                        { status: 409 },
+                    )
+                }
+            }
+        }
+
+        // Vérifier la disponibilité du créneau de livraison choisi
+        if (deliverySlotId) {
+            const slot = await prisma.deliverySlot.findUnique({ where: { id: deliverySlotId } })
+            if (!slot || !slot.isActive) {
+                return NextResponse.json({ error: "Le créneau de livraison choisi n'est plus disponible." }, { status: 409 })
+            }
+            if (slot.currentOrders >= slot.maxOrders) {
+                return NextResponse.json({ error: "Ce créneau de livraison est complet. Veuillez en choisir un autre." }, { status: 409 })
+            }
+        }
+
+        // Prix actuels des produits-ingrédients (recalcul serveur des compositions = anti-fraude)
+        const ingredientIds = collectIngredientIds(cartItems)
+        const ingredientPrices = new Map<string, number>()
+        if (ingredientIds.length) {
+            const ingProducts = await prisma.product.findMany({
+                where: { id: { in: ingredientIds } },
+                select: { id: true, price: true },
+            })
+            for (const p of ingProducts) ingredientPrices.set(p.id, p.price)
+        }
+
+        // Calcul du total — prix unitaire recalculé côté serveur (taille + ingrédients pour les compositions)
         let subtotal = 0
         const orderItemsData = cartItems.map((item) => {
-            const price = item.productId ? item.product!.price : item.composition!.basePrice
-            subtotal += price * item.quantity
+            const unitPrice = cartItemUnitPrice(item, ingredientPrices)
+            subtotal += unitPrice * item.quantity
             return {
                 productId: item.productId || null,
                 compositionId: item.compositionId || null,
                 quantity: item.quantity,
-                priceAtPurchase: price,
+                priceAtPurchase: unitPrice,
+                customData: item.customData ?? undefined,
             }
         })
 
@@ -92,9 +134,10 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Frais de livraison
+        // Frais de livraison — basés sur la config réelle (frais + seuil de gratuité)
         const isDelivery = deliveryMethod === "livraison"
-        const deliveryFee = isDelivery ? (subtotal >= 30 ? 0 : 4.9) : 0
+        const cfg = await getDeliveryConfig()
+        const deliveryFee = computeDeliveryFee(subtotal, isDelivery ? "livraison" : "retrait", cfg)
         const total = subtotal - promoDiscount + deliveryFee
 
         // Adresse utilisateur si pas fournie
@@ -122,11 +165,12 @@ export async function POST(req: NextRequest) {
                 status: "validated", // ← Auto-confirmé !
                 deliveryMethod: deliveryMethod || "livraison",
                 deliveryFee,
-                deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+                deliveryDate: parseDeliveryDate(deliveryDate),
                 deliverySlot: deliveryTime || null,
                 deliveryAddress: isDelivery ? finalAddress : null,
                 deliveryCity: isDelivery ? finalCity : null,
                 deliveryPostalCode: isDelivery ? finalPostalCode : null,
+                phone: phone || null,
                 pickupCode: deliveryMethod === "retrait" ? generatePickupCode() : null,
                 promoCode: validPromoCode,
                 discount: promoDiscount,
@@ -156,6 +200,14 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Réserver le créneau de livraison (incrémente currentOrders)
+        if (deliverySlotId) {
+            await prisma.deliverySlot.updateMany({
+                where: { id: deliverySlotId },
+                data: { currentOrders: { increment: 1 } },
+            })
+        }
+
         // Vider le panier
         const userCart = await prisma.cart.findUnique({ where: { userId: session.user.id } })
         if (userCart) {
@@ -165,7 +217,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Email de confirmation
+        // Email de confirmation client
         const user = await prisma.user.findUnique({ where: { id: session.user.id } })
         if (user?.email) {
             await sendOrderConfirmation(
@@ -175,6 +227,39 @@ export async function POST(req: NextRequest) {
                 order.deliveryMethod || undefined,
                 order.pickupCode
             )
+        }
+
+        // Notification à la société (non bloquant : n'échoue jamais la commande)
+        try {
+            const companyEmail = await getOrderNotificationEmail()
+            if (companyEmail) {
+                await sendNewOrderToCompany(companyEmail, {
+                    orderId: order.id,
+                    orderNumber: `CMD-${order.id.slice(-6).toUpperCase()}`,
+                    customerName: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Client",
+                    customerEmail: user?.email ?? "",
+                    customerPhone: order.phone,
+                    total: order.total,
+                    deliveryMethod: order.deliveryMethod,
+                    deliveryDate: order.deliveryDate,
+                    deliverySlot: order.deliverySlot,
+                    address: isDelivery
+                        ? {
+                              line: order.deliveryAddress,
+                              city: order.deliveryCity,
+                              postalCode: order.deliveryPostalCode,
+                          }
+                        : null,
+                    pickupCode: order.pickupCode,
+                    items: orderItems.map((it) => ({
+                        name: it.product?.name ?? "Composition personnalisée",
+                        quantity: it.quantity,
+                        price: it.priceAtPurchase,
+                    })),
+                })
+            }
+        } catch (notifyError) {
+            console.error("⚠️ Notification société échouée:", notifyError)
         }
 
         return NextResponse.json({

@@ -14,6 +14,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
         where: { slug },
         include: {
             products: {
+                where: { inStock: true },
                 orderBy: { name: 'asc' }
             }
         }

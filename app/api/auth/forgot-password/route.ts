@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
         const resend = new Resend(process.env.RESEND_API_KEY)
         await resend.emails.send({
-            from: "Power <noreply@power-primeur.com>",
+            from: "Power Primeur <noreply@powerprimeur.com>",
             to: email,
             subject: "Réinitialisation de votre mot de passe",
             html: `
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
                             <p style="font-size: 12px; color: #666; margin-top: 24px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
                         </div>
                         <div style="padding: 20px 24px; border-top: 1px solid #222; text-align: center;">
-                            <p style="margin: 0; font-size: 11px; color: #555;">Power — Primeur | 97100 Guadeloupe</p>
+                            <p style="margin: 0; font-size: 11px; color: #555;">Power — Primeur | 114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
                         </div>
                     </div>
                 </body>

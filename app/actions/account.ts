@@ -11,7 +11,14 @@ const updateProfileSchema = z.object({
     address: z.string().optional(),
     city: z.string().optional(),
     postalCode: z.string().optional(),
+    clientType: z.string().optional(),
+    billingType: z.string().optional(),
+    country: z.string().optional(),
+    companyName: z.string().optional(),
+    siret: z.string().optional(),
 })
+
+const ACCOUNT_TYPES = ["particulier", "professionnel"]
 
 export async function getUserProfile() {
     try {
@@ -60,6 +67,11 @@ export async function updateUserProfile(data: z.infer<typeof updateProfileSchema
                 address: parsed.data.address || undefined,
                 city: parsed.data.city || undefined,
                 postalCode: parsed.data.postalCode || undefined,
+                clientType: ACCOUNT_TYPES.includes(parsed.data.clientType || "") ? parsed.data.clientType : undefined,
+                billingType: ACCOUNT_TYPES.includes(parsed.data.billingType || "") ? parsed.data.billingType : undefined,
+                country: parsed.data.country || undefined,
+                companyName: parsed.data.companyName || undefined,
+                siret: parsed.data.siret || undefined,
             }
         })
         return { success: true, data: updatedUser }

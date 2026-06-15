@@ -12,7 +12,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
     const { id } = await params
     const { data: post } = await getBlogPost(id)
 
-    if (!post) {
+    if (!post || !post.published) {
         notFound()
     }
 

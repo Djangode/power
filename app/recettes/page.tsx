@@ -32,9 +32,11 @@ export default async function RecettesPage() {
                                     ) : (
                                         <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-3xl font-black text-zinc-900 italic">POWER CUISINE</div>
                                     )}
-                                    <div className="absolute top-6 left-6 bg-black/60 backdrop-blur-xl border border-white/10 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-xs uppercase tracking-widest">
-                                        <Timer className="w-4 h-4 text-orange-500" /> {recipe.preparationTime} min
-                                    </div>
+                                    {recipe.duration && (
+                                        <div className="absolute top-6 left-6 bg-black/60 backdrop-blur-xl border border-white/10 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-xs uppercase tracking-widest">
+                                            <Timer className="w-4 h-4 text-orange-500" /> {recipe.duration}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="p-10">
                                     <h3 className="text-3xl font-black uppercase italic mb-4 text-white group-hover:text-orange-500 transition-colors">{recipe.title}</h3>

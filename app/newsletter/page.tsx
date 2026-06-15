@@ -1,7 +1,7 @@
 import Header from "@/components/layout/header"
 import Footer from "@/components/layout/footer"
-import { Mail, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Mail } from "lucide-react"
+import NewsletterForm from "@/components/newsletter-form"
 
 export default function NewsletterPage() {
     return (
@@ -21,19 +21,7 @@ export default function NewsletterPage() {
                     Rejoignez le cercle privilégié. Recevez nos arrivages exclusifs et nos conseils nutritionnels avant tout le monde.
                 </p>
 
-                <div className="max-w-md mx-auto relative">
-                    <input
-                        type="email"
-                        placeholder="Votre email premium..."
-                        className="w-full bg-zinc-900/50 border border-white/10 rounded-[24px] px-8 py-6 outline-none focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all text-lg font-medium"
-                    />
-                    <Button className="w-full mt-6 rounded-[24px] bg-white text-black hover:bg-zinc-200 font-black h-16 text-lg uppercase italic tracking-tighter">
-                        S'abonner maintenant
-                    </Button>
-                    <p className="mt-6 text-zinc-600 text-sm flex items-center justify-center gap-2">
-                        <Sparkles className="w-4 h-4" /> Pas de spam. Uniquement de l'énergie.
-                    </p>
-                </div>
+                <NewsletterForm />
             </main>
             <Footer />
         </div>

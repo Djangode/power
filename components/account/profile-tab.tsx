@@ -23,6 +23,8 @@ export default function ProfileTab() {
     address: "",
     city: "",
     postalCode: "",
+    clientType: "particulier",
+    billingType: "particulier",
     country: "",
     companyName: "",
     siret: "",
@@ -44,9 +46,11 @@ export default function ProfileTab() {
           address: res.data.address || "",
           city: res.data.city || "",
           postalCode: res.data.postalCode || "",
-          country: "",
-          companyName: "",
-          siret: "",
+          clientType: res.data.clientType || "particulier",
+          billingType: res.data.billingType || "particulier",
+          country: res.data.country || "",
+          companyName: res.data.companyName || "",
+          siret: res.data.siret || "",
         })
       }
     } catch (error) {
@@ -207,6 +211,71 @@ export default function ProfileTab() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="clientType" className="text-zinc-400 uppercase text-[10px] font-black tracking-widest ml-1">Type de compte</Label>
+                <select
+                  id="clientType"
+                  value={formData.clientType}
+                  onChange={(e) => handleInputChange("clientType", e.target.value)}
+                  disabled={saving}
+                  className="bg-black/40 border border-white/10 rounded-2xl h-14 px-4 w-full focus:border-orange-500/50 transition-all font-bold text-white"
+                >
+                  <option value="particulier">Particulier</option>
+                  <option value="professionnel">Professionnel</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billingType" className="text-zinc-400 uppercase text-[10px] font-black tracking-widest ml-1">Facturation</Label>
+                <select
+                  id="billingType"
+                  value={formData.billingType}
+                  onChange={(e) => handleInputChange("billingType", e.target.value)}
+                  disabled={saving}
+                  className="bg-black/40 border border-white/10 rounded-2xl h-14 px-4 w-full focus:border-orange-500/50 transition-all font-bold text-white"
+                >
+                  <option value="particulier">Particulier</option>
+                  <option value="professionnel">Professionnel</option>
+                </select>
+              </div>
+            </div>
+
+            {formData.clientType === "professionnel" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName" className="text-zinc-400 uppercase text-[10px] font-black tracking-widest ml-1">Raison sociale</Label>
+                  <Input
+                    id="companyName"
+                    value={formData.companyName}
+                    onChange={(e) => handleInputChange("companyName", e.target.value)}
+                    disabled={saving}
+                    className="bg-black/40 border-white/10 rounded-2xl h-14 focus:border-orange-500/50 transition-all font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="siret" className="text-zinc-400 uppercase text-[10px] font-black tracking-widest ml-1">SIRET</Label>
+                  <Input
+                    id="siret"
+                    value={formData.siret}
+                    onChange={(e) => handleInputChange("siret", e.target.value)}
+                    disabled={saving}
+                    className="bg-black/40 border-white/10 rounded-2xl h-14 focus:border-orange-500/50 transition-all font-bold"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="country" className="text-zinc-400 uppercase text-[10px] font-black tracking-widest ml-1">Pays</Label>
+                  <Input
+                    id="country"
+                    value={formData.country}
+                    onChange={(e) => handleInputChange("country", e.target.value)}
+                    disabled={saving}
+                    className="bg-black/40 border-white/10 rounded-2xl h-14 focus:border-orange-500/50 transition-all font-bold"
+                    placeholder="France"
+                  />
+                </div>
+              </div>
+            )}
 
             <Button
               type="submit"

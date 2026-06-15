@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Calendar as CalendarIcon, CheckCircle2, Loader2 } from "lucide-react"
 import { getAvailableDeliverySlots } from "@/app/actions/delivery"
+import { formatLocalDate } from "@/lib/utils"
 
 interface DeliverySlot {
   id: string
@@ -17,17 +18,9 @@ interface DeliverySlot {
 }
 
 interface DeliveryCalendarProps {
-  onSelectDelivery: (delivery: { date: string; time: string }) => void
+  onSelectDelivery: (delivery: { date: string; time: string; dateISO: string; slotId?: string }) => void
   selectedDelivery: { date: string; time: string } | null
 }
-
-// Créneaux par défaut si aucun créneau DB
-const defaultSlots = [
-  { time: "08:00 - 10:00", available: true },
-  { time: "10:00 - 12:00", available: true },
-  { time: "14:00 - 16:00", available: true },
-  { time: "16:00 - 18:00", available: true },
-]
 
 export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }: DeliveryCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -44,7 +37,7 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
   const loadSlots = async (date: Date) => {
     setLoadingSlots(true)
     try {
-      const dateStr = date.toISOString().split('T')[0]
+      const dateStr = formatLocalDate(date)
       const res = await getAvailableDeliverySlots(dateStr, dateStr)
       if (res.success && res.data.length > 0) {
         setSlots(res.data)
@@ -63,12 +56,14 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
     setSelectedTime("")
   }
 
-  const handleTimeSelect = (time: string) => {
-    setSelectedTime(time)
+  const handleSlotSelect = (slot: { id: string; time: string }) => {
+    setSelectedTime(slot.time)
     if (selectedDate) {
       onSelectDelivery({
         date: selectedDate.toLocaleDateString("fr-FR"),
-        time,
+        time: slot.time,
+        dateISO: formatLocalDate(selectedDate),
+        slotId: slot.id,
       })
     }
   }
@@ -80,14 +75,13 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
     return date < tomorrow
   }
 
-  // Utiliser les créneaux DB ou les créneaux par défaut
-  const displaySlots = slots.length > 0
-    ? slots.map(s => ({
-      time: `${s.startTime} - ${s.endTime}`,
-      available: s.remainingSlots > 0,
-      remaining: s.remainingSlots,
-    }))
-    : defaultSlots.map(s => ({ ...s, remaining: 10 }))
+  // Uniquement les vrais créneaux configurés en base (plus aucun créneau fictif)
+  const displaySlots = slots.map(s => ({
+    id: s.id,
+    time: `${s.startTime} - ${s.endTime}`,
+    available: s.remainingSlots > 0,
+    remaining: s.remainingSlots,
+  }))
 
   return (
     <Card className="glassmorphism bg-zinc-900/40 border-white/5 overflow-hidden rounded-[32px]">
@@ -119,17 +113,22 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
                 <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
               </div>
             ) : selectedDate ? (
+              displaySlots.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center border border-dashed border-white/5 rounded-3xl text-zinc-600 font-bold italic text-center px-6 py-8">
+                  Aucun créneau de livraison disponible pour cette date. Veuillez en choisir une autre.
+                </div>
+              ) : (
               <div className="grid grid-cols-1 gap-3 flex-1">
                 {displaySlots.map((slot) => (
                   <Button
-                    key={slot.time}
+                    key={slot.id}
                     variant={selectedTime === slot.time ? "default" : "outline"}
                     className={`h-14 rounded-2xl justify-between px-6 font-bold uppercase italic transition-all ${selectedTime === slot.time
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20 border-0"
                         : "bg-black/40 border-white/5 text-zinc-400 hover:text-white hover:border-orange-500/50"
                       }`}
                     disabled={!slot.available}
-                    onClick={() => handleTimeSelect(slot.time)}
+                    onClick={() => handleSlotSelect(slot)}
                   >
                     <div className="flex items-center gap-3">
                       <Clock className={`w-4 h-4 ${selectedTime === slot.time ? "text-white" : "text-orange-500"}`} />
@@ -145,6 +144,7 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
                   </Button>
                 ))}
               </div>
+              )
             ) : (
               <div className="flex-1 flex items-center justify-center border border-dashed border-white/5 rounded-3xl text-zinc-600 font-bold italic">
                 Sélectionnez une date d'abord

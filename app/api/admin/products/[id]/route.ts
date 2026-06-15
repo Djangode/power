@@ -29,25 +29,40 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params
         const body = await req.json()
 
-        const product = await prisma.product.update({
-            where: { id },
-            data: {
-                name: body.name,
-                description: body.description,
-                price: body.price !== undefined ? parseFloat(body.price) : undefined,
-                unit: body.unit,
-                image: body.image,
-                inStock: body.inStock,
-                organic: body.organic,
-                supplier: body.supplier,
-                origin: body.origin,
-                purchasePrice: body.purchasePrice !== undefined ? parseFloat(body.purchasePrice) : undefined,
-                margin: body.margin !== undefined ? parseFloat(body.margin) : undefined,
-                currentStock: body.currentStock !== undefined ? parseInt(body.currentStock) : undefined,
-                minimumStock: body.minimumStock !== undefined ? parseInt(body.minimumStock) : undefined,
-                categoryId: body.categoryId,
-            }
-        })
+        // Patch sûr : on n'écrit que les champs fournis et on ne laisse JAMAIS passer
+        // une valeur NaN (parseFloat("") => NaN ferait planter Prisma).
+        const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? undefined : n }
+        const int = (v: any) => { const n = parseInt(v); return isNaN(n) ? undefined : n }
+        const data: Record<string, any> = {}
+
+        if (body.name !== undefined) data.name = String(body.name).trim()
+        if (body.description !== undefined) data.description = body.description || null
+        if (body.unit !== undefined) data.unit = body.unit
+        if (body.image !== undefined) data.image = body.image || null
+        if (body.inStock !== undefined) data.inStock = Boolean(body.inStock)
+        if (body.organic !== undefined) data.organic = Boolean(body.organic)
+        if (body.supplier !== undefined) data.supplier = body.supplier || null
+        if (body.origin !== undefined) data.origin = body.origin || null
+        if (body.categoryId) data.categoryId = body.categoryId
+
+        const price = num(body.price)
+        if (body.price !== undefined && price !== undefined) data.price = Math.max(0, price)
+
+        if (body.purchasePrice !== undefined)
+            data.purchasePrice = body.purchasePrice === "" || body.purchasePrice === null ? null : (num(body.purchasePrice) ?? null)
+        if (body.margin !== undefined)
+            data.margin = body.margin === "" || body.margin === null ? null : (num(body.margin) ?? null)
+
+        const cs = int(body.currentStock)
+        if (body.currentStock !== undefined && cs !== undefined) data.currentStock = Math.max(0, cs)
+        const ms = int(body.minimumStock)
+        if (body.minimumStock !== undefined && ms !== undefined) data.minimumStock = Math.max(0, ms)
+
+        if (body.name !== undefined && !data.name) {
+            return NextResponse.json({ error: "Le nom est requis" }, { status: 400 })
+        }
+
+        const product = await prisma.product.update({ where: { id }, data })
 
         return NextResponse.json(product)
     } catch (error) {

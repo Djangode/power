@@ -22,6 +22,10 @@ model User {
   postalCode String?
   clientType String @default("particulier")
   billingType String @default("particulier")
+  country    String?
+  companyName String?
+  siret      String?
+  stripeCustomerId String?
   role      String   @default("user") // "user", "admin", "cashier", "preparation", "delivery"
   isActive  Boolean  @default(true)
   salary    Float?
@@ -112,6 +116,7 @@ model Order {
   deliveryAddress String?
   deliveryCity    String?
   deliveryPostalCode String?
+  phone           String?
   deliveryFee     Float     @default(0)
   pickupCode      String?   // Code for click & collect
   invoiceNumber   String?   @unique
@@ -137,6 +142,7 @@ model OrderItem {
 
   quantity  Int
   priceAtPurchase Float // Capture price at the time of order
+  customData Json? // personnalisation composition (taille, ingrédients) figée à la commande
 }
 
 model Cart {
@@ -244,6 +250,23 @@ model PromoCode {
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  type        String   // "salary", "fuel", "rent", "electricity", "supply", "loss", "other"
+  description String
+  amount      Float
+  date        DateTime
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model DeliverySlot {

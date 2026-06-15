@@ -44,6 +44,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       deliveryCity: order.deliveryCity,
       deliveryPostalCode: order.deliveryPostalCode,
       deliveryFee: order.deliveryFee,
+      discount: order.discount,
+      promoCode: order.promoCode,
+      phone: order.phone,
       pickupCode: order.pickupCode,
       carrier: order.carrier,
       trackingNumber: order.trackingNumber,
@@ -54,6 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         quantity: item.quantity,
         price: item.priceAtPurchase,
         image: item.product?.image || item.composition?.imageUrl || null,
+        customData: item.customData,
       })),
     })
   } catch (error) {

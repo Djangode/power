@@ -5,8 +5,8 @@ import { z } from "zod"
 
 const compositionSchema = z.object({
     name: z.string().min(1, "Le nom est requis").max(200),
-    type: z.enum(["jus", "soupe", "legumes-decoupes"], {
-        errorMap: () => ({ message: "Type invalide. Valeurs : jus, soupe, legumes-decoupes" }),
+    type: z.enum(["jus", "soupe", "legumes-decoupes", "fruits-decoupes"], {
+        errorMap: () => ({ message: "Type invalide. Valeurs : jus, soupe, legumes-decoupes, fruits-decoupes" }),
     }),
     description: z.string().max(2000).optional().nullable(),
     basePrice: z.union([z.number(), z.string()]).transform((val) => {
@@ -14,7 +14,8 @@ const compositionSchema = z.object({
         if (isNaN(num) || num < 0) throw new Error("Prix de base invalide")
         return num
     }),
-    imageUrl: z.string().url().optional().nullable(),
+    // chemin relatif renvoyé par /api/upload (ex: /uploads/xxx.webp) — pas forcément une URL absolue
+    imageUrl: z.string().optional().nullable(),
 })
 
 export async function GET() {

@@ -25,8 +25,8 @@ interface Customer {
   email: string
   address: string
   city: string
-  clientType: 'particulier' | 'restaurant'
-  billingType: 'particulier' | 'pro'
+  clientType: 'particulier' | 'professionnel'
+  billingType: 'particulier' | 'professionnel'
   totalOrders: number
   totalSpent: number
   lastOrderDate: string
@@ -51,6 +51,7 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [proCode, setProCode] = useState("")
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   // States pour les modals
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
@@ -105,7 +106,7 @@ export default function CustomersPage() {
         icon: IconTrendingUp
       },
       footer: {
-        label: `${customers.filter(c => c.clientType === 'restaurant').length} restaurants`,
+        label: `${customers.filter(c => c.clientType === 'professionnel').length} professionnels`,
         subtitle: "Croissance mensuelle"
       }
     },
@@ -140,30 +141,63 @@ export default function CustomersPage() {
   ]
 
   // Fonctions de gestion
-  const handleChangeClientType = (customerId: string, newType: 'particulier' | 'restaurant') => {
-    setCustomers(customers.map(customer =>
-      customer.id === customerId
-        ? {
-          ...customer,
-          clientType: newType,
-          billingType: newType === 'restaurant' ? 'pro' : 'particulier'
-        }
-        : customer
-    ))
+  const saveCustomer = async (
+    userId: string,
+    payload: {
+      clientType?: 'particulier' | 'professionnel'
+      billingType?: 'particulier' | 'professionnel'
+      isActive?: boolean
+      notifications?: Partial<Customer['notifications']>
+    }
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ...payload }),
+      })
+      if (res.ok) return true
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || "Erreur lors de l'enregistrement.")
+      return false
+    } catch (error) {
+      console.error("Erreur enregistrement client:", error)
+      alert("Erreur lors de l'enregistrement.")
+      return false
+    }
   }
 
-  const toggleNotification = (customerId: string, notificationType: keyof Customer['notifications']) => {
-    setCustomers(customers.map(customer =>
-      customer.id === customerId
-        ? {
-          ...customer,
-          notifications: {
-            ...customer.notifications,
-            [notificationType]: !customer.notifications[notificationType]
-          }
-        }
-        : customer
-    ))
+  const handleChangeClientType = async (customerId: string, newType: 'particulier' | 'professionnel') => {
+    const newBilling: 'particulier' | 'professionnel' = newType === 'professionnel' ? 'professionnel' : 'particulier'
+    setSaving(true)
+    const ok = await saveCustomer(customerId, { clientType: newType, billingType: newBilling })
+    setSaving(false)
+    if (ok) {
+      setCustomers(customers.map(customer =>
+        customer.id === customerId
+          ? { ...customer, clientType: newType, billingType: newBilling }
+          : customer
+      ))
+      setSelectedCustomer(prev =>
+        prev && prev.id === customerId
+          ? { ...prev, clientType: newType, billingType: newBilling }
+          : prev
+      )
+    }
+  }
+
+  const toggleNotification = async (customerId: string, notificationType: keyof Customer['notifications']) => {
+    const customer = customers.find(c => c.id === customerId)
+    if (!customer) return
+    const newValue = !customer.notifications[notificationType]
+    const ok = await saveCustomer(customerId, { notifications: { [notificationType]: newValue } })
+    if (ok) {
+      setCustomers(customers.map(c =>
+        c.id === customerId
+          ? { ...c, notifications: { ...c.notifications, [notificationType]: newValue } }
+          : c
+      ))
+    }
   }
 
   const generateProCode = () => {
@@ -273,7 +307,7 @@ export default function CustomersPage() {
                   <SelectContent>
                     <SelectItem value="all">Tous</SelectItem>
                     <SelectItem value="particulier">Particuliers</SelectItem>
-                    <SelectItem value="restaurant">Restaurants</SelectItem>
+                    <SelectItem value="professionnel">Professionnels</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -313,13 +347,13 @@ export default function CustomersPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {customer.clientType === 'restaurant' ? (
+                            {customer.clientType === 'professionnel' ? (
                               <Store className="h-4 w-4 text-blue-600" />
                             ) : (
                               <Users className="h-4 w-4 text-green-600" />
                             )}
-                            <Badge variant={customer.clientType === 'restaurant' ? 'default' : 'secondary'}>
-                              {customer.clientType === 'restaurant' ? 'Restaurant' : 'Particulier'}
+                            <Badge variant={customer.clientType === 'professionnel' ? 'default' : 'secondary'}>
+                              {customer.clientType === 'professionnel' ? 'Professionnel' : 'Particulier'}
                             </Badge>
                           </div>
                         </TableCell>
@@ -327,7 +361,7 @@ export default function CustomersPage() {
                         <TableCell>{customer.city}</TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {customer.billingType === 'pro' ? 'Professionnel' : 'Particulier'}
+                            {customer.billingType === 'professionnel' ? 'Professionnel' : 'Particulier'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -464,7 +498,7 @@ export default function CustomersPage() {
               <Label>Type de client</Label>
               <Select
                 value={selectedCustomer.clientType}
-                onValueChange={(value: 'particulier' | 'restaurant') =>
+                onValueChange={(value: 'particulier' | 'professionnel') =>
                   handleChangeClientType(selectedCustomer.id, value)
                 }
               >
@@ -473,20 +507,101 @@ export default function CustomersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="particulier">Particulier</SelectItem>
-                  <SelectItem value="restaurant">Restaurant</SelectItem>
+                  <SelectItem value="professionnel">Professionnel</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="p-3 bg-muted rounded">
-              <p className="text-sm">
-                <strong>Note:</strong> Changer le type vers "Restaurant" activera automatiquement
-                la facturation professionnelle.
+            <div>
+              <Label>Facturation</Label>
+              <Select
+                value={selectedCustomer.billingType}
+                onValueChange={async (value: 'particulier' | 'professionnel') => {
+                  setSaving(true)
+                  const ok = await saveCustomer(selectedCustomer.id, { billingType: value })
+                  setSaving(false)
+                  if (ok) {
+                    setCustomers(customers.map(c =>
+                      c.id === selectedCustomer.id ? { ...c, billingType: value } : c
+                    ))
+                    setSelectedCustomer({ ...selectedCustomer, billingType: value })
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="particulier">Particulier</SelectItem>
+                  <SelectItem value="professionnel">Professionnel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Statut du compte</Label>
+              <Select
+                value={selectedCustomer.isActive ? "active" : "inactive"}
+                onValueChange={async (value: string) => {
+                  const isActive = value === "active"
+                  setSaving(true)
+                  const ok = await saveCustomer(selectedCustomer.id, { isActive })
+                  setSaving(false)
+                  if (ok) {
+                    setCustomers(customers.map(c =>
+                      c.id === selectedCustomer.id ? { ...c, isActive } : c
+                    ))
+                    setSelectedCustomer({ ...selectedCustomer, isActive })
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Actif</SelectItem>
+                  <SelectItem value="inactive">Inactif</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Notifications</Label>
+              <div className="flex gap-2 mt-2">
+                <NotificationIcon
+                  isActive={selectedCustomer.notifications.newsletter}
+                  type="newsletter"
+                  customerId={selectedCustomer.id}
+                />
+                <NotificationIcon
+                  isActive={selectedCustomer.notifications.promotions}
+                  type="promotions"
+                  customerId={selectedCustomer.id}
+                />
+                <NotificationIcon
+                  isActive={selectedCustomer.notifications.sms}
+                  type="sms"
+                  customerId={selectedCustomer.id}
+                />
+                <NotificationIcon
+                  isActive={selectedCustomer.notifications.updates}
+                  type="updates"
+                  customerId={selectedCustomer.id}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Newsletter, promotions, SMS, mises à jour des commandes.
               </p>
             </div>
 
-            <Button onClick={() => setIsEditModalOpen(false)} className="w-full">
-              Fermer
+            <div className="p-3 bg-muted rounded">
+              <p className="text-sm">
+                <strong>Note :</strong> les modifications sont enregistrées immédiatement.
+              </p>
+            </div>
+
+            <Button onClick={() => setIsEditModalOpen(false)} className="w-full" disabled={saving}>
+              {saving ? "Enregistrement..." : "Fermer"}
             </Button>
           </div>
         )}

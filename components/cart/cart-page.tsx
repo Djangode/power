@@ -9,11 +9,14 @@ import CartItem from "./cart-item"
 import DeliveryCalendar from "@/components/delivery/delivery-calendar"
 import { ShoppingBag, Truck, Calendar, Loader2 } from "lucide-react"
 import { getCartItems, updateCartItemQuantity, removeCartItem, clearCart } from "@/app/actions/cart"
-import { toast } from "sonner"
+import { getDeliveryConfig } from "@/app/actions/content"
+import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
 
 interface DeliveryInfo {
   date: string
   time: string
+  dateISO?: string
+  slotId?: string
 }
 
 export default function CartPage() {
@@ -21,9 +24,11 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryInfo | null>(null)
+  const [deliveryConfig, setDeliveryConfig] = useState<{ fee: number; threshold: number }>({ fee: 4.9, threshold: 30 })
 
   useEffect(() => {
     loadCart()
+    getDeliveryConfig().then((cfg) => { if (cfg) setDeliveryConfig(cfg) }).catch(() => {})
   }, [])
 
   const loadCart = async () => {
@@ -62,8 +67,6 @@ export default function CartPage() {
     }
   }
 
-  const [isCheckingOut, setIsCheckingOut] = useState(false)
-
   const handleClearCart = async () => {
     try {
       const res = await clearCart()
@@ -72,29 +75,6 @@ export default function CartPage() {
       }
     } catch (error) {
       console.error('Erreur clear panier:', error)
-    }
-  }
-
-  const handleCheckout = async () => {
-    try {
-      setIsCheckingOut(true)
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      })
-
-      const data = await res.json()
-
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        toast.error(data.error || "Erreur lors de l'initialisation du paiement")
-      }
-    } catch (error) {
-      console.error("Checkout error:", error)
-      toast.error("Impossible de procéder au paiement")
-    } finally {
-      setIsCheckingOut(false)
     }
   }
 
@@ -112,8 +92,8 @@ export default function CartPage() {
         stock: item.product.currentStock ?? (item.product.inStock ? 99 : 0)
       }
     } else if (item.composition) {
-      const customPrice = item.customData?.totalPrice
-        ? item.customData.totalPrice / item.quantity
+      const customPrice = item.customData
+        ? compositionUnitPrice(item.composition.basePrice, item.customData)
         : item.composition.basePrice
       return {
         id: item.id,
@@ -132,7 +112,7 @@ export default function CartPage() {
 
   const processedItems = items.map(getItemData).filter((item): item is NonNullable<ReturnType<typeof getItemData>> => item !== null)
   const subtotal = processedItems.reduce((sum, item) => sum + item.total, 0)
-  const deliveryFee = subtotal > 30 ? 0 : 4.9
+  const deliveryFee = computeDeliveryFee(subtotal, "livraison", deliveryConfig)
   const total = subtotal + deliveryFee
 
   if (loading) {
@@ -238,7 +218,7 @@ export default function CartPage() {
 
                 {deliveryFee > 0 && (
                   <div className="text-sm font-medium text-orange-400 bg-orange-500/10 p-4 rounded-xl border border-orange-500/20 flex items-center gap-2">
-                    Il ne vous manque que <span className="font-bold">{(30 - subtotal).toFixed(2)}€</span> pour profiter de la livraison gratuite !
+                    Il ne vous manque que <span className="font-bold">{(deliveryConfig.threshold - subtotal).toFixed(2)}€</span> pour profiter de la livraison gratuite !
                   </div>
                 )}
 

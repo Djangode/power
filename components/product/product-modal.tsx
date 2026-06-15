@@ -127,7 +127,7 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="premium">Premium (+0.50€)</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
                     <SelectItem value="eco">Éco-responsable</SelectItem>
                   </SelectContent>
                 </Select>
@@ -159,11 +159,7 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
               <div className="flex items-center justify-between text-lg font-semibold text-zinc-900">
                 <span>Total:</span>
                 <span className="text-orange-500">
-                  {(
-                    product.price * Number.parseInt(quantity) +
-                    (packaging === "premium" ? 0.5 * Number.parseInt(quantity) : 0)
-                  ).toFixed(2)}
-                  €
+                  {(product.price * Number.parseInt(quantity)).toFixed(2)}€
                 </span>
               </div>
 

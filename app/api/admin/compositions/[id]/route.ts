@@ -24,16 +24,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params
         const body = await req.json()
 
-        const composition = await prisma.composition.update({
-            where: { id },
-            data: {
-                name: body.name,
-                type: body.type,
-                description: body.description || null,
-                basePrice: body.basePrice !== undefined ? parseFloat(body.basePrice) : undefined,
-                imageUrl: body.imageUrl || null,
+        const ALLOWED_TYPES = ["jus", "soupe", "legumes-decoupes", "fruits-decoupes"]
+        if (body.type !== undefined && !ALLOWED_TYPES.includes(body.type)) {
+            return NextResponse.json(
+                { error: "Type invalide. Valeurs : jus, soupe, legumes-decoupes, fruits-decoupes" },
+                { status: 400 }
+            )
+        }
+
+        const data: Record<string, any> = {}
+        if (body.name !== undefined) data.name = String(body.name).trim()
+        if (body.type !== undefined) data.type = body.type
+        if (body.description !== undefined) data.description = body.description || null
+        if (body.imageUrl !== undefined) data.imageUrl = body.imageUrl || null
+        if (body.basePrice !== undefined) {
+            const n = parseFloat(body.basePrice)
+            if (isNaN(n) || n < 0) {
+                return NextResponse.json({ error: "Prix de base invalide" }, { status: 400 })
             }
-        })
+            data.basePrice = n
+        }
+
+        const composition = await prisma.composition.update({ where: { id }, data })
 
         return NextResponse.json(composition)
     } catch (error) {

@@ -61,10 +61,17 @@ export async function GET() {
             unit: product.unit,
             current_stock: product.currentStock,
             minimum_stock: product.minimumStock,
-            status: !product.inStock ? 'out_of_stock' : product.currentStock <= product.minimumStock ? 'low_stock' : 'active',
+            status: !product.inStock
+                ? 'inactive'
+                : product.currentStock === 0
+                    ? 'out_of_stock'
+                    : product.currentStock <= product.minimumStock
+                        ? 'low_stock'
+                        : 'active',
             is_organic: product.organic,
             image_url: product.image,
             categories: product.category,
+            categoryId: product.categoryId,
             supplier: product.supplier,
             origin: product.origin,
             purchasePrice: product.purchasePrice,

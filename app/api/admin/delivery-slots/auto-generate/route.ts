@@ -28,24 +28,22 @@ export async function POST(req: NextRequest) {
         const body = await req.json().catch(() => ({}))
         const weeksAhead = body.weeksAhead || WEEKS_AHEAD
 
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        // Aujourd'hui à minuit UTC — les créneaux sont stockés à minuit UTC, de façon
+        // indépendante du fuseau du serveur (cohérent avec la requête côté client).
+        const now = new Date()
+        const startUTCms = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
 
         let created = 0
         let skipped = 0
 
         // Parcourir chaque jour sur N semaines
         for (let dayOffset = 0; dayOffset < weeksAhead * 7; dayOffset++) {
-            const date = new Date(today)
-            date.setDate(today.getDate() + dayOffset)
+            const date = new Date(startUTCms + dayOffset * 86_400_000)
 
-            const dayOfWeek = date.getDay()
+            const dayOfWeek = date.getUTCDay()
 
             // Sauter les jours hors planning (dimanche + lundi)
             if (!DELIVERY_DAYS.includes(dayOfWeek)) continue
-
-            // Sauter les jours passés
-            if (date < today) continue
 
             // Générer les créneaux horaires pour cette journée
             for (let hour = START_HOUR; hour < END_HOUR; hour++) {

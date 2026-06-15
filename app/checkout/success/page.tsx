@@ -22,6 +22,8 @@ interface OrderData {
   deliveryCity: string | null
   deliveryPostalCode: string | null
   deliveryFee: number
+  discount: number
+  promoCode: string | null
   pickupCode: string | null
   status: string
   createdAt: string
@@ -35,12 +37,13 @@ interface OrderData {
 function SuccessContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
+  const orderId = searchParams.get("order_id")
   const [order, setOrder] = useState<OrderData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId && !orderId) {
       setLoading(false)
       setError(true)
       return
@@ -48,7 +51,12 @@ function SuccessContent() {
 
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/by-session?session_id=${sessionId}`)
+        // order_id : commande déjà créée (espèces / CB à la livraison) → récupération directe.
+        // session_id : paiement Stripe → on attend que le webhook ait validé la commande.
+        const url = orderId
+          ? `/api/orders/${orderId}`
+          : `/api/orders/by-session?session_id=${sessionId}`
+        const res = await fetch(url)
         if (res.ok) {
           const data = await res.json()
           setOrder(data)
@@ -62,10 +70,10 @@ function SuccessContent() {
       }
     }
 
-    // Small delay to allow webhook to process
-    const timer = setTimeout(fetchOrder, 1500)
+    // Délai pour laisser le webhook Stripe traiter ; inutile quand on a déjà l'order_id
+    const timer = setTimeout(fetchOrder, orderId ? 0 : 1500)
     return () => clearTimeout(timer)
-  }, [sessionId])
+  }, [sessionId, orderId])
 
   if (loading) {
     return (
@@ -167,6 +175,13 @@ function SuccessContent() {
                     {order.deliveryFee === 0 ? "Gratuit" : `${order.deliveryFee.toFixed(2)}€`}
                   </span>
                 </div>
+
+                {order.discount > 0 && (
+                  <div className="flex justify-between text-sm text-green-400">
+                    <span>Remise {order.promoCode ? `(${order.promoCode})` : ""}</span>
+                    <span>-{order.discount.toFixed(2)}€</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -182,7 +197,7 @@ function SuccessContent() {
                     </div>
                     <div>
                       <p className="font-bold text-white">Retrait en magasin</p>
-                      <p className="text-sm text-zinc-400">Power — Primeur, 97100 Guadeloupe</p>
+                      <p className="text-sm text-zinc-400">Power — Primeur, 114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
                     </div>
                   </div>
                   {order.pickupCode && (
@@ -212,6 +227,12 @@ function SuccessContent() {
                       )}
                     </div>
                   </div>
+                  {order.deliveryDate && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <Clock className="w-4 h-4 text-orange-500" />
+                      <span>Date : {new Date(order.deliveryDate).toLocaleDateString("fr-FR")}</span>
+                    </div>
+                  )}
                   {order.deliverySlot && (
                     <div className="flex items-center gap-2 text-sm text-zinc-400">
                       <Clock className="w-4 h-4 text-orange-500" />

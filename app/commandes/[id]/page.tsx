@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
   CheckCircle2, Package, Truck, Clock, ArrowLeft, Loader2,
-  ShoppingBag, MapPin, FileText, Download, RotateCcw
+  ShoppingBag, MapPin, FileText, Download, RotateCcw, Phone
 } from "lucide-react"
 
 interface OrderDetail {
@@ -26,6 +26,9 @@ interface OrderDetail {
   deliveryCity: string | null
   deliveryPostalCode: string | null
   deliveryFee: number
+  discount: number
+  promoCode: string | null
+  phone: string | null
   pickupCode: string | null
   carrier: string | null
   trackingNumber: string | null
@@ -36,6 +39,7 @@ interface OrderDetail {
     quantity: number
     price: number
     image: string | null
+    customData?: any
   }[]
 }
 
@@ -107,6 +111,7 @@ export default function OrderDetailPage() {
 
   const currentStepIndex = statusOrder.indexOf(order.status)
   const config = statusConfig[order.status] || statusConfig.pending
+  const itemsSubtotal = order.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -179,6 +184,12 @@ export default function OrderDetailPage() {
                           <div>
                             <p className="text-white font-bold">{item.name}</p>
                             <p className="text-zinc-400 text-sm">{item.price.toFixed(2)}€ x {item.quantity}</p>
+                            {item.customData?.size && (
+                              <p className="text-zinc-500 text-xs mt-0.5">
+                                {item.customData.sizeLabel || item.customData.size}
+                                {item.customData.ingredients?.length ? " · " + item.customData.ingredients.map((i: any) => i.name).join(", ") : ""}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <span className="text-white font-black">{(item.price * item.quantity).toFixed(2)}€</span>
@@ -191,8 +202,14 @@ export default function OrderDetailPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm text-zinc-400">
                       <span>Sous-total</span>
-                      <span className="text-white">{(order.total - order.deliveryFee).toFixed(2)}€</span>
+                      <span className="text-white">{itemsSubtotal.toFixed(2)}€</span>
                     </div>
+                    {order.discount > 0 && (
+                      <div className="flex justify-between text-sm text-green-400">
+                        <span>Remise {order.promoCode ? `(${order.promoCode})` : ""}</span>
+                        <span>-{order.discount.toFixed(2)}€</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm text-zinc-400">
                       <span>Livraison</span>
                       <span className={order.deliveryFee === 0 ? "text-green-400" : "text-white"}>
@@ -247,7 +264,7 @@ export default function OrderDetailPage() {
                         <MapPin className="w-5 h-5 text-orange-500" />
                         <div>
                           <p className="text-white font-bold text-sm">Power — Primeur</p>
-                          <p className="text-zinc-400 text-xs">97100 Guadeloupe</p>
+                          <p className="text-zinc-400 text-xs">114 Rue Paul Vaillant Couturier, 94140 Alfortville</p>
                         </div>
                       </div>
                       {order.pickupCode && (
@@ -272,10 +289,22 @@ export default function OrderDetailPage() {
                           )}
                         </div>
                       </div>
+                      {order.deliveryDate && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="w-4 h-4 text-orange-500" />
+                          <span className="text-zinc-400">{new Date(order.deliveryDate).toLocaleDateString("fr-FR")}</span>
+                        </div>
+                      )}
                       {order.deliverySlot && (
                         <div className="flex items-center gap-2 text-sm">
                           <Clock className="w-4 h-4 text-orange-500" />
                           <span className="text-zinc-400">{order.deliverySlot}</span>
+                        </div>
+                      )}
+                      {order.phone && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="w-4 h-4 text-orange-500" />
+                          <span className="text-zinc-400">{order.phone}</span>
                         </div>
                       )}
                     </>

@@ -104,7 +104,7 @@ export default function TeamPage() {
   // Calculs
   const activeEmployees = employees.filter(e => e.isActive).length
   const totalEmployees = employees.length
-  const pendingAccounts = employees.filter(e => !e.accountCreated && e.isActive).length
+  const inactiveEmployees = employees.filter(e => !e.isActive).length
   const monthlySalaryCost = employees
     .filter(e => e.isActive)
     .reduce((sum, e) => {
@@ -129,17 +129,17 @@ export default function TeamPage() {
       }
     },
     {
-      title: "Comptes en Attente",
-      value: pendingAccounts,
-      description: "invitations à envoyer",
+      title: "Comptes Inactifs",
+      value: inactiveEmployees,
+      description: "employés désactivés",
       trend: {
-        value: pendingAccounts > 0 ? "+1" : "0",
+        value: inactiveEmployees > 0 ? `${inactiveEmployees}` : "0",
         isPositive: false,
-        icon: pendingAccounts > 0 ? IconTrendingUp : IconTrendingDown
+        icon: inactiveEmployees > 0 ? IconTrendingUp : IconTrendingDown
       },
       footer: {
-        label: "Créations compte",
-        subtitle: pendingAccounts > 0 ? "Action requise" : "À jour"
+        label: "Accès suspendus",
+        subtitle: inactiveEmployees > 0 ? "À vérifier" : "Tous actifs"
       }
     },
     {
@@ -231,26 +231,51 @@ export default function TeamPage() {
     }
   }
 
-  const toggleEmployeeStatus = (employeeId: string) => {
-    setEmployees(employees.map(emp =>
-      emp.id === employeeId
-        ? { ...emp, isActive: !emp.isActive }
-        : emp
-    ))
+  const toggleEmployeeStatus = async (employeeId: string) => {
+    const emp = employees.find(e => e.id === employeeId)
+    if (!emp) return
+    const newStatus = !emp.isActive
+    try {
+      const res = await fetch("/api/admin/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: employeeId, isActive: newStatus }),
+      })
+      if (res.ok) {
+        setEmployees(employees.map(e =>
+          e.id === employeeId ? { ...e, isActive: newStatus } : e
+        ))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || "Erreur lors du changement de statut.")
+      }
+    } catch (error) {
+      console.error("Erreur changement statut employé:", error)
+      alert("Erreur lors du changement de statut.")
+    }
   }
 
-  const togglePermission = (employeeId: string, permission: keyof Employee['permissions']) => {
-    setEmployees(employees.map(emp =>
-      emp.id === employeeId
-        ? {
-          ...emp,
-          permissions: {
-            ...emp.permissions,
-            [permission]: !emp.permissions[permission]
-          }
-        }
-        : emp
-    ))
+  const changeEmployeeRole = async (employeeId: string, newRole: Employee['role']) => {
+    try {
+      const res = await fetch("/api/admin/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: employeeId, role: newRole }),
+      })
+      if (res.ok) {
+        // Recharge pour récupérer les droits dérivés du nouveau rôle.
+        await loadEmployees()
+        setSelectedEmployee(prev =>
+          prev && prev.id === employeeId ? { ...prev, role: newRole } : prev
+        )
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || "Erreur lors du changement de rôle.")
+      }
+    } catch (error) {
+      console.error("Erreur changement rôle employé:", error)
+      alert("Erreur lors du changement de rôle.")
+    }
   }
 
   const getRoleLabel = (role: string) => {
@@ -273,7 +298,9 @@ export default function TeamPage() {
     }
   }
 
-  const PermissionIndicator = ({ isActive, permission, employeeId }: { isActive: boolean, permission: keyof Employee['permissions'], employeeId: string }) => {
+  // Indicateur en lecture seule : les droits sont dérivés du rôle de l'employé
+  // (il n'existe pas de table de permissions granulaires en base).
+  const PermissionIndicator = ({ isActive, permission }: { isActive: boolean, permission: keyof Employee['permissions'] }) => {
     const icons = {
       caisse: CreditCard,
       preparation: Package,
@@ -281,22 +308,25 @@ export default function TeamPage() {
       products: Eye,
       customers: Users
     }
+    const labels: Record<keyof Employee['permissions'], string> = {
+      caisse: "Caisse",
+      preparation: "Préparation",
+      orders: "Commandes",
+      products: "Produits",
+      customers: "Clients"
+    }
     const Icon = icons[permission]
 
     return (
-      <button
-        onClick={() => togglePermission(employeeId, permission)}
-        className={`relative p-1 rounded transition-all ${isActive
+      <span
+        className={`p-1 rounded border ${isActive
             ? 'text-green-600 bg-green-50 border-green-200'
             : 'text-gray-400 bg-gray-50 border-gray-200'
-          } border hover:scale-110`}
-        title={`${permission} ${isActive ? 'activé' : 'désactivé'}`}
+          }`}
+        title={`${labels[permission]} ${isActive ? 'autorisé' : 'non autorisé'} (selon le rôle)`}
       >
         <Icon className="h-4 w-4" />
-        {isActive && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-        )}
-      </button>
+      </span>
     )
   }
 
@@ -345,7 +375,7 @@ export default function TeamPage() {
                       <TableHead>Salaire</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead>Compte</TableHead>
-                      <TableHead>Droits d'Accès</TableHead>
+                      <TableHead>Droits (selon rôle)</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -388,26 +418,24 @@ export default function TeamPage() {
 
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {employee.accountCreated ? (
-                              <Badge className="bg-green-100 text-green-800">
-                                <UserCheck className="h-3 w-3 mr-1" />
-                                Créé
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => sendAccountInvitation(employee.id)}
-                                disabled={invitingId === employee.id}
-                                className="text-orange-600 border-orange-200"
-                              >
-                                {invitingId === employee.id ? (
-                                  <><span className="h-3 w-3 mr-1 animate-spin inline-block border-2 border-orange-600 border-t-transparent rounded-full" /> Envoi...</>
-                                ) : (
-                                  <><Mail className="h-3 w-3 mr-1" /> Inviter</>
-                                )}
-                              </Button>
-                            )}
+                            <Badge className="bg-green-100 text-green-800">
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Créé
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => sendAccountInvitation(employee.id)}
+                              disabled={invitingId === employee.id}
+                              title="Réinitialiser et renvoyer les identifiants par email"
+                              className="text-muted-foreground"
+                            >
+                              {invitingId === employee.id ? (
+                                <><span className="h-3 w-3 mr-1 animate-spin inline-block border-2 border-current border-t-transparent rounded-full" /> Envoi...</>
+                              ) : (
+                                <><Mail className="h-3 w-3 mr-1" /> Renvoyer l&apos;accès</>
+                              )}
+                            </Button>
                           </div>
                         </TableCell>
 
@@ -416,27 +444,22 @@ export default function TeamPage() {
                             <PermissionIndicator
                               isActive={employee.permissions.caisse}
                               permission="caisse"
-                              employeeId={employee.id}
                             />
                             <PermissionIndicator
                               isActive={employee.permissions.preparation}
                               permission="preparation"
-                              employeeId={employee.id}
                             />
                             <PermissionIndicator
                               isActive={employee.permissions.orders}
                               permission="orders"
-                              employeeId={employee.id}
                             />
                             <PermissionIndicator
                               isActive={employee.permissions.products}
                               permission="products"
-                              employeeId={employee.id}
                             />
                             <PermissionIndicator
                               isActive={employee.permissions.customers}
                               permission="customers"
-                              employeeId={employee.id}
                             />
                           </div>
                         </TableCell>
@@ -603,31 +626,51 @@ export default function TeamPage() {
             <Separator />
 
             <div>
-              <Label>Droits d'accès configurés</Label>
+              <Label>Rôle</Label>
+              <Select
+                value={selectedEmployee.role}
+                onValueChange={(value: string) =>
+                  changeEmployeeRole(selectedEmployee.id, value as Employee['role'])
+                }
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preparation">Préparateur</SelectItem>
+                  <SelectItem value="cashier">Caissier</SelectItem>
+                  <SelectItem value="delivery">Livreur</SelectItem>
+                  <SelectItem value="admin">Administrateur</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Droits d'accès (dérivés du rôle)</Label>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4" />
-                  <span className="text-sm">Caisse: {selectedEmployee.permissions.caisse ? '✅' : '❌'}</span>
+                  <span className="text-sm">Caisse : {selectedEmployee.permissions.caisse ? 'Oui' : 'Non'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  <span className="text-sm">Préparation: {selectedEmployee.permissions.preparation ? '✅' : '❌'}</span>
+                  <span className="text-sm">Préparation : {selectedEmployee.permissions.preparation ? 'Oui' : 'Non'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-4 w-4" />
-                  <span className="text-sm">Commandes: {selectedEmployee.permissions.orders ? '✅' : '❌'}</span>
+                  <span className="text-sm">Commandes : {selectedEmployee.permissions.orders ? 'Oui' : 'Non'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4" />
-                  <span className="text-sm">Produits: {selectedEmployee.permissions.products ? '✅' : '❌'}</span>
+                  <span className="text-sm">Produits : {selectedEmployee.permissions.products ? 'Oui' : 'Non'}</span>
                 </div>
               </div>
             </div>
 
             <div className="p-3 bg-gray-50 rounded">
               <p className="text-sm">
-                <strong>Note:</strong> Cliquez sur les icônes clignotantes dans le tableau
-                pour modifier les droits d'accès en temps réel.
+                <strong>Note :</strong> les droits d'accès sont automatiquement déterminés
+                par le rôle. Changez le rôle ci-dessus pour ajuster les droits.
               </p>
             </div>
 

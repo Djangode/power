@@ -4,10 +4,14 @@ import * as React from "react"
 import {
   IconChartBar,
   IconCalendarEvent,
+  IconChefHat,
   IconDashboard,
   IconDatabase,
   IconFileDescription,
+  IconFileText,
   IconFileWord,
+  IconHandStop,
+  IconHelpCircle,
   IconInnerShadowTop,
   IconListDetails,
   IconMail,
@@ -60,6 +64,29 @@ const navMain = [
     title: "Analytics",
     url: "/admin/Analytics",
     icon: IconChartBar,
+  },
+]
+
+const navContent = [
+  {
+    title: "Blog",
+    url: "/admin/blog",
+    icon: IconFileText,
+  },
+  {
+    title: "Recettes",
+    url: "/admin/recipes",
+    icon: IconChefHat,
+  },
+  {
+    title: "FAQ",
+    url: "/admin/faq",
+    icon: IconHelpCircle,
+  },
+  {
+    title: "Partenaires",
+    url: "/admin/partners",
+    icon: IconHandStop,
   },
 ]
 
@@ -139,6 +166,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navMain.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <Link href={item.url}>
+                      <item.icon className="!size-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Contenu (CMS)</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navContent.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <Link href={item.url}>

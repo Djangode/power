@@ -1,6 +1,5 @@
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive"
-import { DataTable } from "@/components/admin/data-table"
 import { SectionCards } from "@/components/admin/section-cards"
 import { SiteHeader } from "@/components/admin/site-header"
 import {
@@ -43,15 +42,18 @@ export default async function Page() {
 
   const ordersThisMonth = await prisma.order.findMany({
     where: { createdAt: { gte: firstDayThisMonth } },
-    select: { total: true }
+    select: { total: true, status: true }
   })
   const ordersLastMonth = await prisma.order.findMany({
     where: { createdAt: { gte: firstDayLastMonth, lt: firstDayThisMonth } },
-    select: { total: true }
+    select: { total: true, status: true }
   })
 
-  const revenueThisMonth = ordersThisMonth.reduce((sum, o) => sum + o.total, 0)
-  const revenueLastMonth = ordersLastMonth.reduce((sum, o) => sum + o.total, 0)
+  // CA = commandes réellement encaissées (delivered) ; volume = commandes non annulées
+  const revenueThisMonth = ordersThisMonth.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.total, 0)
+  const revenueLastMonth = ordersLastMonth.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.total, 0)
+  const activeOrdersThisMonth = ordersThisMonth.filter(o => o.status !== 'cancelled').length
+  const activeOrdersLastMonth = ordersLastMonth.filter(o => o.status !== 'cancelled').length
   const revenueTrend = revenueLastMonth > 0
     ? (((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100).toFixed(1)
     : "0"
@@ -61,6 +63,41 @@ export default async function Page() {
     : "0"
 
   const totalRevenue = revenueThisMonth
+
+  // Évolution sur les 6 derniers mois (mois courant inclus)
+  const firstMonthStart = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+  const monthlyOrders = await prisma.order.findMany({
+    where: { createdAt: { gte: firstMonthStart } },
+    select: { total: true, status: true, createdAt: true },
+  })
+
+  const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+  const chartData = Array.from({ length: 6 }, (_, i) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)
+    return {
+      key: `${monthDate.getFullYear()}-${monthDate.getMonth()}`,
+      name: monthNames[monthDate.getMonth()],
+      revenue: 0,
+      orders: 0,
+    }
+  })
+  const chartIndex = new Map(chartData.map((m, i) => [m.key, i]))
+
+  for (const order of monthlyOrders) {
+    const key = `${order.createdAt.getFullYear()}-${order.createdAt.getMonth()}`
+    const idx = chartIndex.get(key)
+    if (idx === undefined) continue
+    // CA = commandes réellement encaissées (delivered)
+    if (order.status === 'delivered') chartData[idx].revenue += order.total
+    // Volume = commandes non annulées
+    if (order.status !== 'cancelled') chartData[idx].orders += 1
+  }
+
+  const chartPoints = chartData.map(({ name, revenue, orders }) => ({
+    name,
+    revenue: Number(revenue.toFixed(2)),
+    orders,
+  }))
 
   const dashboardStats = [
     {
@@ -104,15 +141,15 @@ export default async function Page() {
     },
     {
       title: "Commandes du Mois",
-      value: ordersThisMonth.length.toString(),
+      value: activeOrdersThisMonth.toString(),
       description: "Commandes passées",
       trend: {
-        value: `${ordersThisMonth.length - ordersLastMonth.length >= 0 ? '+' : ''}${ordersThisMonth.length - ordersLastMonth.length}`,
-        isPositive: ordersThisMonth.length >= ordersLastMonth.length
+        value: `${activeOrdersThisMonth - activeOrdersLastMonth >= 0 ? '+' : ''}${activeOrdersThisMonth - activeOrdersLastMonth}`,
+        isPositive: activeOrdersThisMonth >= activeOrdersLastMonth
       },
       footer: {
         label: "vs mois précédent",
-        subtitle: `Précédent: ${ordersLastMonth.length}`
+        subtitle: `Précédent: ${activeOrdersLastMonth}`
       }
     }
   ]
@@ -134,7 +171,7 @@ export default async function Page() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <SectionCards data={dashboardStats} />
               <div className="px-4 lg:px-6">
-                <ChartAreaInteractive />
+                <ChartAreaInteractive data={chartPoints} />
               </div>
               <div className="px-4 lg:px-6">
                 <h3 className="text-xl font-bold mb-4">Dernières Commandes</h3>

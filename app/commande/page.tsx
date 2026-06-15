@@ -12,6 +12,8 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { getCartItems } from "@/app/actions/cart"
 import { getUserProfile } from "@/app/actions/account"
+import { getDeliveryConfig } from "@/app/actions/content"
+import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
 import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock, User, Tag, X, Banknote, CreditCard } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -19,6 +21,8 @@ import { toast } from "sonner"
 interface DeliveryInfo {
   date: string
   time: string
+  dateISO?: string
+  slotId?: string
 }
 
 interface PromoResult {
@@ -39,6 +43,7 @@ export default function CommandePage() {
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryInfo | null>(null)
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card_on_delivery">("cash")
+  const [deliveryConfig, setDeliveryConfig] = useState<{ fee: number; threshold: number }>({ fee: 4.9, threshold: 30 })
 
   // Promo code
   const [promoInput, setPromoInput] = useState("")
@@ -55,9 +60,10 @@ export default function CommandePage() {
     async function loadData() {
       try {
         setLoading(true)
-        const [cartRes, profileRes] = await Promise.all([
+        const [cartRes, profileRes, cfgRes] = await Promise.all([
           getCartItems(),
-          getUserProfile()
+          getUserProfile(),
+          getDeliveryConfig()
         ])
         if (cartRes.success && cartRes.data) {
           setItems(cartRes.data)
@@ -68,6 +74,9 @@ export default function CommandePage() {
           setCity(u.city || "")
           setPostalCode(u.postalCode || "")
           setPhone(u.phone || "")
+        }
+        if (cfgRes) {
+          setDeliveryConfig(cfgRes)
         }
       } catch (error) {
         console.error("Erreur chargement:", error)
@@ -91,8 +100,8 @@ export default function CommandePage() {
         customData: null,
       }
     } else if (item.composition) {
-      const customPrice = item.customData?.totalPrice
-        ? item.customData.totalPrice / item.quantity
+      const customPrice = item.customData
+        ? compositionUnitPrice(item.composition.basePrice, item.customData)
         : item.composition.basePrice
       return {
         id: item.id,
@@ -110,7 +119,7 @@ export default function CommandePage() {
 
   const processedItems = items.map(getItemData).filter(Boolean) as NonNullable<ReturnType<typeof getItemData>>[]
   const subtotal = processedItems.reduce((sum, item) => sum + item.total, 0)
-  const deliveryFee = deliveryMethod === "retrait" ? 0 : (subtotal >= 30 ? 0 : 4.9)
+  const deliveryFee = computeDeliveryFee(subtotal, deliveryMethod, deliveryConfig)
   const discount = appliedPromo?.discount || 0
   const total = Math.max(0, subtotal - discount) + deliveryFee
 
@@ -153,11 +162,13 @@ export default function CommandePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deliveryMethod,
-          deliveryDate: selectedDelivery?.date,
+          deliveryDate: selectedDelivery?.dateISO || selectedDelivery?.date,
           deliveryTime: selectedDelivery?.time,
+          deliverySlotId: selectedDelivery?.slotId || null,
           deliveryAddress: address,
           deliveryCity: city,
           deliveryPostalCode: postalCode,
+          phone,
           promoCode: appliedPromo?.code || null,
           paymentMethod,
         }),
@@ -238,7 +249,8 @@ export default function CommandePage() {
                     <p className="font-bold text-white">Livraison</p>
                     <p className="text-xs text-zinc-400 mt-1">Chez vous sous 24-48h</p>
                     <p className="text-xs text-zinc-500 mt-1">
-                      {subtotal >= 30 ? "Gratuit" : "4.90€"} {subtotal < 30 && `(gratuit dès 30€)`}
+                      {subtotal >= deliveryConfig.threshold ? "Gratuit" : `${deliveryConfig.fee.toFixed(2)}€`}{" "}
+                      {subtotal < deliveryConfig.threshold && `(gratuit dès ${deliveryConfig.threshold}€)`}
                     </p>
                   </button>
                   <button
@@ -280,7 +292,7 @@ export default function CommandePage() {
                           <Input
                             value={postalCode}
                             onChange={(e) => setPostalCode(e.target.value)}
-                            placeholder="97100"
+                            placeholder="94140"
                             className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
                           />
                         </div>
@@ -289,7 +301,7 @@ export default function CommandePage() {
                           <Input
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
-                            placeholder="Basse-Terre"
+                            placeholder="Alfortville"
                             className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
                           />
                         </div>

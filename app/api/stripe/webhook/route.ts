@@ -32,7 +32,12 @@ export async function POST(req: Request) {
 
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object as Stripe.Checkout.Session
-            const { orderId, userId } = session.metadata || {}
+            const { orderId, userId, deliverySlotId } = session.metadata || {}
+
+            // Ne traiter que les paiements réellement réglés
+            if (session.payment_status && session.payment_status !== "paid") {
+                return NextResponse.json({ received: true })
+            }
 
             if (orderId && userId) {
                 // Vérifier idempotence — ne pas retraiter une commande déjà validée
@@ -56,6 +61,23 @@ export async function POST(req: Request) {
                         invoiceNumber,
                     }
                 })
+
+                // Incrémenter l'utilisation du code promo — uniquement au paiement confirmé,
+                // et une seule fois grâce au verrou d'idempotence ci-dessus.
+                if (order.promoCode) {
+                    await prisma.promoCode.updateMany({
+                        where: { code: order.promoCode },
+                        data: { currentUses: { increment: 1 } },
+                    })
+                }
+
+                // Réserver le créneau de livraison — une seule fois, au paiement confirmé
+                if (deliverySlotId) {
+                    await prisma.deliverySlot.updateMany({
+                        where: { id: deliverySlotId },
+                        data: { currentOrders: { increment: 1 } },
+                    })
+                }
 
                 // Décrémenter le stock des produits commandés
                 const orderItems = await prisma.orderItem.findMany({

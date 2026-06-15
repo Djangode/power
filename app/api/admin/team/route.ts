@@ -31,6 +31,10 @@ export async function GET() {
             hoursPerWeek: emp.hoursPerWeek || 35,
             startDate: emp.createdAt.toISOString().split('T')[0],
             isActive: emp.isActive,
+            // Tous les membres d'équipe sont des comptes User : ils ont donc un compte.
+            hasAccount: true,
+            accountCreated: true,
+            // Droits dérivés du rôle (lecture seule — non persistés indépendamment).
             permissions: {
                 caisse: emp.role === 'cashier' || emp.role === 'admin',
                 preparation: emp.role === 'preparation' || emp.role === 'admin',
@@ -114,6 +118,53 @@ export async function POST(req: NextRequest) {
         }, { status: 201 })
     } catch (error) {
         console.error("API Admin Team POST:", error)
+        return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    }
+}
+
+const updateEmployeeSchema = z.object({
+    userId: z.string().min(1, "userId requis"),
+    isActive: z.boolean().optional(),
+    role: z.enum(["admin", "cashier", "preparation", "delivery"]).optional(),
+})
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const session = await auth()
+        if (!session?.user?.id || session.user.role !== "admin") {
+            return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+        }
+
+        const body = await req.json()
+        const parsed = updateEmployeeSchema.safeParse(body)
+
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
+        }
+
+        const { userId, isActive, role } = parsed.data
+
+        const existing = await prisma.user.findUnique({ where: { id: userId } })
+        if (!existing) {
+            return NextResponse.json({ error: "Employé introuvable" }, { status: 404 })
+        }
+
+        const data: { isActive?: boolean; role?: string } = {}
+        if (isActive !== undefined) data.isActive = isActive
+        if (role !== undefined) data.role = role
+
+        if (Object.keys(data).length === 0) {
+            return NextResponse.json({ error: "Aucune donnée à mettre à jour" }, { status: 400 })
+        }
+
+        const updated = await prisma.user.update({ where: { id: userId }, data })
+
+        return NextResponse.json({
+            success: true,
+            data: { id: updated.id, isActive: updated.isActive, role: updated.role }
+        })
+    } catch (error) {
+        console.error("API Admin Team PATCH:", error)
         return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
     }
 }

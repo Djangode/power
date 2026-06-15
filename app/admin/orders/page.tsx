@@ -240,10 +240,16 @@ export default function OrdersPage() {
                   <span>{order.deliveryAddress}, {order.deliveryPostalCode} {order.deliveryCity}</span>
                 </div>
               )}
-              {order.deliverySlot && (
+              {(order.deliveryDate || order.deliverySlot) && (
                 <div className="flex items-center gap-1 text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{order.deliverySlot}</span>
+                  <Calendar className="h-3 w-3" />
+                  <span>
+                    {order.deliveryDate
+                      ? new Date(order.deliveryDate).toLocaleDateString('fr-FR')
+                      : ""}
+                    {order.deliveryDate && order.deliverySlot ? " — " : ""}
+                    {order.deliverySlot || ""}
+                  </span>
                 </div>
               )}
             </>
@@ -404,6 +410,9 @@ export default function OrdersPage() {
                   <p className="font-medium flex items-center gap-2"><Truck className="h-4 w-4" /> Livraison</p>
                   {selectedOrder.deliveryAddress && (
                     <p className="text-sm">{selectedOrder.deliveryAddress}, {selectedOrder.deliveryPostalCode} {selectedOrder.deliveryCity}</p>
+                  )}
+                  {selectedOrder.deliveryDate && (
+                    <p className="text-sm">Date de livraison: {new Date(selectedOrder.deliveryDate).toLocaleDateString('fr-FR')}</p>
                   )}
                   {selectedOrder.deliverySlot && <p className="text-sm">Créneau: {selectedOrder.deliverySlot}</p>}
                   {selectedOrder.carrier && <p className="text-sm">Transporteur: {selectedOrder.carrier}</p>}

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ShoppingBag, Plus, Minus, Trash2, Loader2, X } from "lucide-react"
 import { getCartItems, updateCartItemQuantity, removeCartItem } from "@/app/actions/cart"
-import { toast } from "sonner"
+import { getDeliveryConfig } from "@/app/actions/content"
+import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
 
 interface CartDrawerProps {
   open: boolean
@@ -19,6 +20,11 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [deliveryConfig, setDeliveryConfig] = useState<{ fee: number; threshold: number }>({ fee: 4.9, threshold: 30 })
+
+  useEffect(() => {
+    getDeliveryConfig().then((cfg) => { if (cfg) setDeliveryConfig(cfg) }).catch(() => {})
+  }, [])
 
   const loadCart = useCallback(async () => {
     try {
@@ -95,8 +101,8 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
         customData: null,
       }
     } else if (item.composition) {
-      const customPrice = item.customData?.totalPrice
-        ? item.customData.totalPrice / item.quantity
+      const customPrice = item.customData
+        ? compositionUnitPrice(item.composition.basePrice, item.customData)
         : item.composition.basePrice
       return {
         id: item.id,
@@ -114,7 +120,7 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
 
   const processedItems = items.map(getItemData).filter(Boolean) as NonNullable<ReturnType<typeof getItemData>>[]
   const subtotal = processedItems.reduce((sum, item) => sum + item.total, 0)
-  const deliveryFee = subtotal > 30 ? 0 : 4.9
+  const deliveryFee = computeDeliveryFee(subtotal, "livraison", deliveryConfig)
   const total = subtotal + deliveryFee
   const totalQuantity = processedItems.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -244,7 +250,7 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
             </div>
             {deliveryFee > 0 && (
               <p className="text-[10px] text-orange-600 bg-orange-500/10 px-2 py-1 rounded-lg text-center">
-                Plus que {(30 - subtotal).toFixed(2)}€ pour la livraison gratuite
+                Plus que {(deliveryConfig.threshold - subtotal).toFixed(2)}€ pour la livraison gratuite
               </p>
             )}
             <Separator className="bg-zinc-300" />
