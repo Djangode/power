@@ -1,0 +1,60 @@
+name: Deploy Production
+
+# Déploiement continu, conditionné aux tests.
+#
+# Ne se déclenche QUE si le workflow CI (typecheck + tests) s'est terminé avec succès
+# sur `main`. Une CI rouge → aucun déploiement. C'est le garde-fou qui manquait : avant,
+# le déploiement se faisait à la main, sans garantie que les tests passaient.
+#
+# PRÉREQUIS (une seule fois, côté GitHub) :
+#   Settings → Secrets and variables → Actions → New repository secret
+#     VERCEL_TOKEN      → jeton personnel Vercel (vercel.com/account/tokens)
+#     VERCEL_ORG_ID     → lu dans .vercel/project.json (orgId)
+#     VERCEL_PROJECT_ID → lu dans .vercel/project.json (projectId)
+#
+# ET : désactiver l'auto-déploiement Git de Vercel (Project → Settings → Git →
+# « Ignored Build Step » ou déconnexion du déploiement auto), sinon Vercel déploierait
+# en double, sans attendre les tests.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Ne déploie que si la CI a réussi.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Installer Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Récupérer la configuration Vercel
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build de production
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Déployer
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

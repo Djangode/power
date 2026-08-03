@@ -1,5 +1,7 @@
 name: CI
 
+# Vérifie chaque push et chaque PR. Le déploiement (deploy.yml) attend que ce workflow
+# soit vert avant de partir : rien ne va en production sans typecheck + tests au vert.
 on:
   push:
     branches: [main]
