@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input"
 import { getCartItems } from "@/app/actions/cart"
 import { getUserProfile } from "@/app/actions/account"
 import { getDeliveryConfig } from "@/app/actions/content"
-import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { cartItemUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { describeSelection } from "@/lib/composition-pricing"
 import { Truck, Store, ArrowLeft, Loader2, MapPin, Clock, User, Tag, X, Banknote, CreditCard } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -100,9 +101,8 @@ export default function CommandePage() {
         customData: null,
       }
     } else if (item.composition) {
-      const customPrice = item.customData
-        ? compositionUnitPrice(item.composition.basePrice, item.customData)
-        : item.composition.basePrice
+      // Même calcul que le serveur : prix du format retenu plus les suppléments.
+      const customPrice = cartItemUnitPrice(item)
       return {
         id: item.id,
         name: item.composition.name,
@@ -147,13 +147,29 @@ export default function CommandePage() {
   }
 
   const handleCheckout = async () => {
-    if (deliveryMethod === "livraison" && !selectedDelivery) {
-      toast.error("Veuillez choisir une date et un créneau de livraison")
+    if (!selectedDelivery) {
+      toast.error(
+        deliveryMethod === "livraison"
+          ? "Veuillez choisir une date et un créneau de livraison"
+          : "Veuillez choisir une date et une heure de retrait",
+      )
       return
     }
-    if (deliveryMethod === "livraison" && !address.trim()) {
-      toast.error("Veuillez renseigner votre adresse de livraison")
+    // Le téléphone est le seul moyen de joindre le client en cas d'imprévu (rupture,
+    // absence à la livraison, commande prête plus tôt) : exigé dans les deux modes.
+    if (!phone.trim()) {
+      toast.error("Veuillez renseigner un numéro de téléphone")
       return
+    }
+    if (deliveryMethod === "livraison") {
+      if (!address.trim()) {
+        toast.error("Veuillez renseigner votre adresse de livraison")
+        return
+      }
+      if (!postalCode.trim() || !city.trim()) {
+        toast.error("Veuillez renseigner le code postal et la ville de livraison")
+        return
+      }
     }
     try {
       setIsCheckingOut(true)
@@ -320,16 +336,20 @@ export default function CommandePage() {
                 </div>
               )}
 
-              {/* Calendrier livraison OU info retrait */}
-              {deliveryMethod === "livraison" ? (
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4">Date et créneau de livraison</h2>
-                  <DeliveryCalendar
-                    onSelectDelivery={setSelectedDelivery}
-                    selectedDelivery={selectedDelivery}
-                  />
-                </div>
-              ) : (
+              {/* Date et créneau : exigés dans les deux modes.
+                  En retrait, sans horaire choisi le commerçant ne sait pas quand préparer
+                  la commande ni quand attendre le client. */}
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4">
+                  {deliveryMethod === "livraison" ? "Date et créneau de livraison" : "Date et heure de retrait"}
+                </h2>
+                <DeliveryCalendar
+                  onSelectDelivery={setSelectedDelivery}
+                  selectedDelivery={selectedDelivery}
+                />
+              </div>
+
+              {deliveryMethod === "retrait" && (
                 <Card className="glassmorphism bg-zinc-900/40 border-white/5 rounded-2xl">
                   <CardContent className="p-6 space-y-4">
                     <h3 className="font-bold text-white flex items-center gap-2">
@@ -344,10 +364,6 @@ export default function CommandePage() {
                     <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
                       <p className="text-sm text-orange-400 font-medium">Un code de retrait vous sera attribué après confirmation.</p>
                       <p className="text-xs text-zinc-400 mt-1">Présentez-le en magasin pour récupérer votre commande.</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-zinc-400">
-                      <Clock className="h-4 w-4 text-orange-500" />
-                      <span>Disponible sous 2h après confirmation</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -495,7 +511,12 @@ export default function CommandePage() {
 
                   <Button
                     onClick={handleCheckout}
-                    disabled={isCheckingOut || (deliveryMethod === "livraison" && (!selectedDelivery || !address.trim()))}
+                    disabled={
+                      isCheckingOut ||
+                      !selectedDelivery ||
+                      !phone.trim() ||
+                      (deliveryMethod === "livraison" && (!address.trim() || !postalCode.trim() || !city.trim()))
+                    }
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-6 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.3)] text-base disabled:opacity-50"
                   >
                     {isCheckingOut ? (

@@ -73,8 +73,17 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
 
   return (
     <div
-      className="flex items-center gap-3 bg-zinc-900/60 border border-white/5 rounded-2xl p-3 active:bg-zinc-800/60 transition-colors"
+      className="flex items-center gap-3 bg-zinc-900/60 border border-white/5 rounded-2xl p-3 active:bg-zinc-800/60 transition-colors cursor-pointer"
+      role="button"
+      tabIndex={0}
+      aria-label={`Voir le détail de ${product.name}`}
       onClick={onViewDetails}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onViewDetails?.()
+        }
+      }}
     >
       <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800">
         <Image

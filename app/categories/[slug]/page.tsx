@@ -43,18 +43,32 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                        {category.products.map((product) => (
+                        {category.products.map((product) => {
+                            const isOutOfStock = product.currentStock <= 0
+                            const isLowStock = !isOutOfStock && product.currentStock <= 5
+                            return (
                             <div key={product.id} className="group glassmorphism bg-zinc-900/40 rounded-[40px] overflow-hidden border border-white/5 hover:border-orange-500/50 transition-all duration-500 flex flex-col h-full">
                                 <div className="relative aspect-square overflow-hidden bg-zinc-800">
                                     <Image
                                         src={product.image || "/placeholder-product.jpg"}
                                         alt={product.name}
                                         fill
-                                        className="object-cover group-hover:scale-110 transition-transform duration-1000"
+                                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                                        className={`object-cover group-hover:scale-110 transition-transform duration-1000 ${isOutOfStock ? "opacity-40 grayscale" : ""}`}
                                     />
                                     {product.organic && (
                                         <div className="absolute top-6 left-6 bg-orange-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full flex items-center gap-1 shadow-xl shadow-orange-500/20 uppercase tracking-widest">
                                             <Leaf className="w-3 h-3" /> BIO
+                                        </div>
+                                    )}
+                                    {isOutOfStock && (
+                                        <div className="absolute top-6 right-6 bg-zinc-950/90 backdrop-blur-xl text-zinc-200 text-[10px] font-black px-3 py-1.5 rounded-full border border-white/10 uppercase tracking-widest">
+                                            Épuisé
+                                        </div>
+                                    )}
+                                    {isLowStock && (
+                                        <div className="absolute top-6 right-6 bg-orange-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest">
+                                            Plus que {product.currentStock}
                                         </div>
                                     )}
                                     <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-xl text-white px-4 py-2 rounded-2xl text-xl font-black border border-white/10 italic">
@@ -71,12 +85,14 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                                             productId={product.id}
                                             name={product.name}
                                             price={product.price}
+                                            outOfStock={isOutOfStock}
                                             className="w-full h-14"
                                         />
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            )
+                        })}
                     </div>
 
                     {category.products.length === 0 && (

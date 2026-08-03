@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,8 +56,8 @@ function ResetContent() {
       setError("Les mots de passe ne correspondent pas")
       return
     }
-    if (password.length < 6) {
-      setError("Le mot de passe doit faire au moins 6 caractères")
+    if (password.length < 8) {
+      setError("Le mot de passe doit faire au moins 8 caractères")
       return
     }
 
@@ -130,7 +131,15 @@ function ResetContent() {
         </Link>
 
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold text-white tracking-tight">
+          <Image
+            src="/logo-power-mark.png"
+            alt=""
+            width={72}
+            height={72}
+            priority
+            className="mx-auto h-16 w-16"
+          />
+          <h1 className="mt-3 text-3xl font-extrabold text-white tracking-tight">
             Power<span className="text-orange-500">.</span>
           </h1>
           <p className="text-zinc-400 mt-2">
@@ -180,7 +189,7 @@ function ResetContent() {
                         placeholder="••••••••"
                         required
                         disabled={loading}
-                        minLength={6}
+                        minLength={8}
                       />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

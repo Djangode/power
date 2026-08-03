@@ -3,12 +3,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // ===== Mocks =====
 const mockAuth = vi.fn()
 const mockOrderUpdate = vi.fn()
+const mockOrderFindUnique = vi.fn()
+const mockOrderItemFindMany = vi.fn()
+const mockProductUpdate = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     order: {
       update: (...args: any[]) => mockOrderUpdate(...args),
+      // La route relit le statut avant mise à jour, pour ne restituer le stock qu'à la
+      // première annulation.
+      findUnique: (...args: any[]) => mockOrderFindUnique(...args),
     },
+    orderItem: { findMany: (...args: any[]) => mockOrderItemFindMany(...args) },
+    product: { update: (...args: any[]) => mockProductUpdate(...args) },
   },
 }))
 
@@ -36,6 +44,8 @@ const defaultParams = Promise.resolve({ id: 'order-1' })
 describe('PUT /api/admin/orders/[id]/status — SECURISE', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockOrderFindUnique.mockResolvedValue({ status: 'validated' })
+    mockOrderItemFindMany.mockResolvedValue([])
   })
 
   it('devrait rejeter un non-admin', async () => {

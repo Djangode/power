@@ -9,7 +9,20 @@ export default async function ProductSection() {
       include: { category: true }
     }),
     prisma.composition.findMany({
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      // Formats et ingrédients inclus : sans eux, le configurateur ouvert depuis la page
+      // d'accueil affiche « aucun format configuré » alors que tout est réglé en admin.
+      include: {
+        sizes: {
+          orderBy: [{ order: 'asc' }, { price: 'asc' }],
+          select: { id: true, name: true, price: true, description: true, isDefault: true, includedChoices: true },
+        },
+        options: {
+          where: { isActive: true },
+          orderBy: [{ order: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, extraPrice: true, includedByDefault: true, isRemovable: true },
+        },
+      },
     })
   ])
 
@@ -24,6 +37,7 @@ export default async function ProductSection() {
     categorySlug: product.category.slug,
     inStock: product.inStock,
     organic: product.organic,
+    currentStock: product.currentStock,
   }))
 
   const formattedCompositions = compositions.map((comp) => ({
@@ -32,7 +46,10 @@ export default async function ProductSection() {
     type: comp.type,
     basePrice: comp.basePrice,
     description: comp.description || "",
-    image: comp.imageUrl || "/placeholder.svg",
+    image: comp.imageUrl || "/placeholder-product.jpg",
+    imageUrl: comp.imageUrl,
+    sizes: comp.sizes,
+    options: comp.options,
   }))
 
   const categories = [...new Set(products.map(p => p.category.name))]

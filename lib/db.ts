@@ -16,6 +16,16 @@ const globalForPrisma = globalThis as unknown as {
 
 function makePrisma(): PrismaClient {
     if (!cleanUrl || cleanUrl.includes('xxx') || cleanUrl.includes('placeholder')) {
+        // En production, ce mode transformerait une base injoignable en site parfaitement
+        // vide — catalogue sans produits, commandes introuvables — sans la moindre erreur
+        // dans les journaux. Mieux vaut refuser de démarrer que servir une boutique fantôme.
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error(
+                'DATABASE_URL absent ou invalide en production. Le mode dégradé sans base est ' +
+                'volontairement désactivé ici : il masquerait la panne derrière un site vide.',
+            )
+        }
+
         console.warn('⚠️  DATABASE_URL non configuré — mode mock activé. Les données ne seront pas persistées.')
         // Mode sans DB : retourne un mock qui ne crashe pas
         return new Proxy({}, {

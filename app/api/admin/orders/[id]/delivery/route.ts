@@ -29,9 +29,14 @@ export async function PUT(
             include: { user: true }
         })
 
-        // Send shipping notification email
+        // Notification d'expédition — non bloquante : les informations de livraison sont
+        // déjà enregistrées, une panne Resend ne doit pas les faire passer pour perdues.
         if (updatedOrder.user?.email) {
-            await sendOrderStatusUpdate(updatedOrder.user.email, id, "shipped", trackingNumber)
+            try {
+                await sendOrderStatusUpdate(updatedOrder.user.email, id, "shipped", trackingNumber)
+            } catch (emailError) {
+                console.error("⚠️ Email d'expédition échoué:", emailError)
+            }
         }
 
         return NextResponse.json({ success: true, data: updatedOrder })

@@ -7,7 +7,16 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "postinstall": "prisma generate"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run test",
+    "images:fetch": "node --env-file=.env scripts/fetch-product-images.mjs",
+    "images:sheet": "node scripts/contact-sheet.mjs",
+    "images:apply": "node --env-file=.env scripts/apply-product-images.mjs",
+    "postinstall": "prisma generate",
+    "telegram:test": "node --env-file=.env scripts/test-telegram.mjs",
+    "telegram:link": "node --env-file=.env scripts/telegram-chat-id.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -49,6 +58,7 @@
     "@stripe/stripe-js": "^8.8.0",
     "@tabler/icons-react": "^3.37.1",
     "@tanstack/react-table": "^8.21.3",
+    "@vercel/blob": "^2.6.1",
     "@vercel/postgres": "^0.10.0",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^3.0.3",
@@ -71,6 +81,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
     "resend": "^6.9.2",
+    "sharp": "^0.35.3",
     "sonner": "^1.7.1",
     "stripe": "^20.3.1",
     "tailwind-merge": "^2.5.5",

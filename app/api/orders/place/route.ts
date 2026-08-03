@@ -5,6 +5,9 @@ import { sendOrderConfirmation, sendNewOrderToCompany } from "@/lib/email"
 import { cartItemUnitPrice, collectIngredientIds, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
 import { parseDeliveryDate } from "@/lib/utils"
 import { getDeliveryConfig, getOrderNotificationEmail } from "@/app/actions/content"
+import { nextInvoiceNumber } from "@/lib/invoice"
+import { sendNewOrderToTelegram } from "@/lib/telegram"
+import { describeSelection } from "@/lib/composition-pricing"
 
 function generatePickupCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -39,12 +42,43 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Mode de paiement invalide" }, { status: 400 })
         }
 
+        // Les contrôles du formulaire ne protègent que l'utilisateur honnête : une commande
+        // sans horaire, sans téléphone ou sans adresse complète est impossible à honorer.
+        const method = deliveryMethod === "retrait" ? "retrait" : "livraison"
+        const parsedDeliveryDate = parseDeliveryDate(deliveryDate)
+
+        if (!parsedDeliveryDate) {
+            return NextResponse.json(
+                { error: method === "retrait" ? "Date de retrait manquante ou invalide" : "Date de livraison manquante ou invalide" },
+                { status: 400 },
+            )
+        }
+        if (!deliveryTime || typeof deliveryTime !== "string" || !deliveryTime.trim()) {
+            return NextResponse.json(
+                { error: method === "retrait" ? "Créneau de retrait manquant" : "Créneau de livraison manquant" },
+                { status: 400 },
+            )
+        }
+        if (!phone || typeof phone !== "string" || phone.replace(/[\s.\-]/g, "").length < 10) {
+            return NextResponse.json({ error: "Numéro de téléphone manquant ou invalide" }, { status: 400 })
+        }
+
         // Récupération du panier
         const cartItems = await prisma.cartItem.findMany({
             where: { cart: { userId: session.user.id } },
             include: {
                 product: true,
-                composition: true,
+                // Formats et ingrédients chargés depuis la base : le prix facturé est
+                // recalculé ici, jamais repris de ce que le client a envoyé.
+                composition: {
+                    include: {
+                        sizes: { select: { id: true, name: true, price: true, isDefault: true, includedChoices: true } },
+                        options: {
+                            where: { isActive: true },
+                            select: { id: true, name: true, extraPrice: true, includedByDefault: true },
+                        },
+                    },
+                },
             },
         })
 
@@ -135,7 +169,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Frais de livraison — basés sur la config réelle (frais + seuil de gratuité)
-        const isDelivery = deliveryMethod === "livraison"
+        const isDelivery = method === "livraison"
         const cfg = await getDeliveryConfig()
         const deliveryFee = computeDeliveryFee(subtotal, isDelivery ? "livraison" : "retrait", cfg)
         const total = subtotal - promoDiscount + deliveryFee
@@ -154,8 +188,15 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Numéro de facture
-        const invoiceNumber = `FAC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        if (isDelivery && (!finalAddress?.trim() || !finalCity?.trim() || !finalPostalCode?.trim())) {
+            return NextResponse.json(
+                { error: "Adresse de livraison incomplète (rue, code postal et ville sont requis)" },
+                { status: 400 },
+            )
+        }
+
+        // Numéro de facture séquentiel (obligation de numérotation continue, cf. lib/invoice)
+        const invoiceNumber = await nextInvoiceNumber()
 
         // Création de la commande → auto-confirmée ("validated")
         const order = await prisma.order.create({
@@ -163,15 +204,15 @@ export async function POST(req: NextRequest) {
                 userId: session.user.id,
                 total,
                 status: "validated", // ← Auto-confirmé !
-                deliveryMethod: deliveryMethod || "livraison",
+                deliveryMethod: method,
                 deliveryFee,
-                deliveryDate: parseDeliveryDate(deliveryDate),
-                deliverySlot: deliveryTime || null,
+                deliveryDate: parsedDeliveryDate,
+                deliverySlot: deliveryTime,
                 deliveryAddress: isDelivery ? finalAddress : null,
                 deliveryCity: isDelivery ? finalCity : null,
                 deliveryPostalCode: isDelivery ? finalPostalCode : null,
-                phone: phone || null,
-                pickupCode: deliveryMethod === "retrait" ? generatePickupCode() : null,
+                phone,
+                pickupCode: method === "retrait" ? generatePickupCode() : null,
                 promoCode: validPromoCode,
                 discount: promoDiscount,
                 invoiceNumber,
@@ -185,7 +226,20 @@ export async function POST(req: NextRequest) {
         // Décrémenter le stock
         const orderItems = await prisma.orderItem.findMany({
             where: { orderId: order.id },
-            include: { product: true },
+            // Formats et ingrédients rechargés : la notification doit décrire la
+            // préparation à faire, pas seulement le nom de la composition.
+            include: {
+                product: true,
+                composition: {
+                    include: {
+                        sizes: { select: { id: true, name: true, price: true, isDefault: true, includedChoices: true } },
+                        options: {
+                            where: { isActive: true },
+                            select: { id: true, name: true, extraPrice: true, includedByDefault: true },
+                        },
+                    },
+                },
+            },
         })
         for (const item of orderItems) {
             if (item.productId && item.product) {
@@ -217,16 +271,70 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Email de confirmation client
+        // Email de confirmation client.
+        // Non bloquant : la commande est déjà en base et le stock décrémenté. Laisser une
+        // panne Resend remonter en 500 ferait croire au client que sa commande a échoué,
+        // et le pousserait à la repasser.
         const user = await prisma.user.findUnique({ where: { id: session.user.id } })
         if (user?.email) {
-            await sendOrderConfirmation(
-                user.email,
-                order.id,
-                order.total,
-                order.deliveryMethod || undefined,
-                order.pickupCode
-            )
+            try {
+                await sendOrderConfirmation(
+                    user.email,
+                    order.id,
+                    order.total,
+                    order.deliveryMethod || undefined,
+                    order.pickupCode
+                )
+            } catch (emailError) {
+                console.error("⚠️ Email de confirmation client échoué:", emailError)
+            }
+        }
+
+        const orderNumber = `CMD-${order.id.slice(-6).toUpperCase()}`
+        const paymentLabel = paymentMethod === "cash" ? "Espèces à la réception" : "Carte bleue à la réception"
+        // Chaque ligne porte son unité et, pour une composition, le détail de la
+        // configuration : c'est la fiche de préparation du commerçant.
+        const notifiedItems = orderItems.map((it) => {
+            const custom = it.customData as { sizeId?: string; optionIds?: string[] } | null
+            const composition = it.composition as
+                | { name: string; sizes?: any[]; options?: any[] }
+                | null
+
+            return {
+                name: it.product?.name ?? composition?.name ?? "Article",
+                quantity: it.quantity,
+                price: it.priceAtPurchase,
+                unit: it.product?.unit ?? null,
+                selection: composition
+                    ? describeSelection(
+                          { sizeId: custom?.sizeId, optionIds: custom?.optionIds },
+                          composition.sizes ?? [],
+                          composition.options ?? [],
+                      )
+                    : null,
+            }
+        })
+
+        // Notification Telegram — arrive sur le téléphone en quelques secondes, là où l'email
+        // peut traîner. Non bloquante, comme toutes les notifications ici.
+        try {
+            await sendNewOrderToTelegram({
+                orderNumber,
+                customerName: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Client",
+                customerPhone: order.phone,
+                total: order.total,
+                deliveryMethod: order.deliveryMethod,
+                deliveryDate: order.deliveryDate,
+                deliverySlot: order.deliverySlot,
+                pickupCode: order.pickupCode,
+                address: isDelivery
+                    ? { line: order.deliveryAddress, postalCode: order.deliveryPostalCode, city: order.deliveryCity }
+                    : null,
+                paymentLabel,
+                items: notifiedItems,
+            })
+        } catch (telegramError) {
+            console.error("⚠️ Notification Telegram échouée:", telegramError)
         }
 
         // Notification à la société (non bloquant : n'échoue jamais la commande)
@@ -235,7 +343,7 @@ export async function POST(req: NextRequest) {
             if (companyEmail) {
                 await sendNewOrderToCompany(companyEmail, {
                     orderId: order.id,
-                    orderNumber: `CMD-${order.id.slice(-6).toUpperCase()}`,
+                    orderNumber,
                     customerName: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Client",
                     customerEmail: user?.email ?? "",
                     customerPhone: order.phone,
@@ -251,11 +359,7 @@ export async function POST(req: NextRequest) {
                           }
                         : null,
                     pickupCode: order.pickupCode,
-                    items: orderItems.map((it) => ({
-                        name: it.product?.name ?? "Composition personnalisée",
-                        quantity: it.quantity,
-                        price: it.priceAtPurchase,
-                    })),
+                    items: notifiedItems,
                 })
             }
         } catch (notifyError) {

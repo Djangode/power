@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { cookies } from "next/headers"
 import { auth } from "@/auth"
+import { roundToStep, minQuantity, formatQuantity } from "@/lib/units"
 
 // Helper : Obtenir l'ID du panier actif (via User ou SessionId anonyme)
 export async function getCartId() {
@@ -60,28 +61,67 @@ export async function getCartId() {
 // Action : Ajouter au Panier
 export async function addToCart({ productId, compositionId, quantity = 1, customData }: { productId?: string, compositionId?: string, quantity?: number, customData?: any }) {
     try {
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            return { success: false, error: "Quantité invalide" }
+        }
+
         const cartId = await getCartId()
 
-        // Cherche l'item
+        // Contrôle de stock dès l'ajout : sans lui, le client ne découvre la rupture qu'au
+        // moment de valider sa commande, après avoir saisi adresse et créneau.
+        if (productId) {
+            const product = await prisma.product.findUnique({
+                where: { id: productId },
+                select: { name: true, unit: true, inStock: true, currentStock: true },
+            })
+            if (!product || !product.inStock) {
+                return { success: false, error: "Ce produit n'est plus disponible" }
+            }
+
+            // La quantité est réalignée ici sur le pas de l'unité : le formulaire peut être
+            // contourné, et une quantité au millième fausserait la pesée comme la facture.
+            quantity = roundToStep(quantity, product.unit)
+            if (quantity < minQuantity(product.unit)) {
+                return {
+                    success: false,
+                    error: `Quantité minimale : ${formatQuantity(minQuantity(product.unit), product.unit)}`,
+                }
+            }
+
+            const alreadyInCart = await prisma.cartItem.findFirst({
+                where: { cartId, productId },
+                select: { quantity: true },
+            })
+            const requested = roundToStep((alreadyInCart?.quantity ?? 0) + quantity, product.unit)
+            if (requested > product.currentStock) {
+                const left = Math.max(0, product.currentStock - (alreadyInCart?.quantity ?? 0))
+                return {
+                    success: false,
+                    error: left > 0
+                        ? `Il ne reste que ${formatQuantity(left, product.unit)} de « ${product.name} » en stock`
+                        : `« ${product.name} » est épuisé`,
+                }
+            }
+        }
+
+        // Cherche l'item.
+        // Une composition personnalisée n'est fusionnée qu'avec une personnalisation
+        // identique : un jus taille S et un jus taille L doivent rester deux lignes.
         const existingItem = await prisma.cartItem.findFirst({
             where: {
                 cartId,
                 productId: productId || null,
-                compositionId: compositionId || null
+                compositionId: compositionId || null,
+                ...(customData ? { customData: { equals: customData } } : {}),
             }
         })
 
-        if (existingItem && !customData) {
-            // Augmente la quantité (produits simples)
+        if (existingItem) {
+            // Même produit, ou même composition avec exactement la même personnalisation :
+            // on cumule les quantités sur la ligne existante.
             await prisma.cartItem.update({
                 where: { id: existingItem.id },
                 data: { quantity: existingItem.quantity + quantity }
-            })
-        } else if (existingItem && customData) {
-            // Composition avec choix personnalisés — update les données
-            await prisma.cartItem.update({
-                where: { id: existingItem.id },
-                data: { quantity: existingItem.quantity + quantity, customData }
             })
         } else {
             // Cree nouvel item
@@ -115,7 +155,16 @@ export async function getCartItems() {
                     select: { id: true, name: true, price: true, image: true, unit: true, inStock: true, currentStock: true }
                 },
                 composition: {
-                    select: { id: true, name: true, basePrice: true, imageUrl: true, type: true }
+                    // Formats et ingrédients inclus : le panier doit afficher le même prix
+                    // que celui recalculé à la commande, sinon le total change en cours de route.
+                    select: {
+                        id: true, name: true, basePrice: true, imageUrl: true, type: true,
+                        sizes: { select: { id: true, name: true, price: true, isDefault: true, includedChoices: true } },
+                        options: {
+                            where: { isActive: true },
+                            select: { id: true, name: true, extraPrice: true, includedByDefault: true },
+                        },
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -128,9 +177,52 @@ export async function getCartItems() {
     }
 }
 
+/**
+ * Vérifie que l'item visé appartient bien au panier de l'appelant.
+ * Sans ce contrôle, un identifiant d'item deviné suffit à modifier ou vider le panier
+ * de n'importe quel autre visiteur.
+ */
+async function assertItemBelongsToCaller(cartItemId: string) {
+    const cartId = await getCartId()
+    const item = await prisma.cartItem.findFirst({
+        where: { id: cartItemId, cartId },
+        select: { id: true },
+    })
+    return item ? cartId : null
+}
+
 // Action : Mettre a jour Quantité
 export async function updateCartItemQuantity(cartItemId: string, quantity: number) {
     try {
+        if (!(await assertItemBelongsToCaller(cartItemId))) {
+            return { success: false, error: "Article introuvable dans votre panier" }
+        }
+
+        if (quantity > 0) {
+            const item = await prisma.cartItem.findUnique({
+                where: { id: cartItemId },
+                include: { product: { select: { name: true, unit: true, currentStock: true, inStock: true } } },
+            })
+            if (item?.product) {
+                if (!item.product.inStock) {
+                    return { success: false, error: "Ce produit n'est plus disponible" }
+                }
+                quantity = roundToStep(quantity, item.product.unit)
+                if (quantity < minQuantity(item.product.unit)) {
+                    return {
+                        success: false,
+                        error: `Quantité minimale : ${formatQuantity(minQuantity(item.product.unit), item.product.unit)}`,
+                    }
+                }
+                if (quantity > item.product.currentStock) {
+                    return {
+                        success: false,
+                        error: `Il ne reste que ${formatQuantity(Math.max(0, item.product.currentStock), item.product.unit)} de « ${item.product.name} » en stock`,
+                    }
+                }
+            }
+        }
+
         if (quantity <= 0) {
             await prisma.cartItem.delete({ where: { id: cartItemId } })
         } else {
@@ -149,6 +241,10 @@ export async function updateCartItemQuantity(cartItemId: string, quantity: numbe
 // Action : Supprimer Item
 export async function removeCartItem(cartItemId: string) {
     try {
+        if (!(await assertItemBelongsToCaller(cartItemId))) {
+            return { success: false, error: "Article introuvable dans votre panier" }
+        }
+
         await prisma.cartItem.delete({ where: { id: cartItemId } })
         return { success: true }
     } catch (error) {

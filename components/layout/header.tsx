@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
@@ -91,29 +92,25 @@ export default function Header() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link href="/" aria-label="Power Primeur — Accueil">
-              <span className="text-xl font-extrabold text-white tracking-tight"><span className="sm:hidden">P<span className="text-orange-500">.</span></span><span className="hidden sm:inline">Power<span className="text-orange-500">.</span></span></span>
+            <Link href="/" aria-label="Power Primeur — Accueil" className="flex items-center gap-2">
+              {/* Médaillon détouré, pas le bandeau du fichier source : sur un header
+                  translucide, un logotype à fond noir plaque un rectangle opaque. */}
+              <Image
+                src="/logo-power-mark.png"
+                alt=""
+                width={36}
+                height={36}
+                priority
+                className="h-8 w-8 sm:h-9 sm:w-9"
+              />
+              <span className="hidden sm:inline text-xl font-extrabold text-white tracking-tight">
+                Power<span className="text-orange-500">.</span>
+              </span>
             </Link>
           </div>
 
-          {/* Nav centrale */}
-          <nav className="hidden md:flex items-center glassmorphism bg-black/60 px-2 py-1.5 rounded-full border border-white/10 shadow-2xl backdrop-blur-xl">
-            <button
-              onClick={scrollToMarketplace}
-              className="px-5 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all"
-            >
-              Boutique
-            </button>
-            <button
-              onClick={() => setCartOpen(true)}
-              className="px-5 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all"
-            >
-              Panier
-            </button>
-            <Link href="/contact" className="px-5 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all">
-              Contact
-            </Link>
-          </nav>
+          {/* Pas de navigation centrale : la boutique se découvre au scroll, le panier a
+              son bouton à droite, et Contact vit dans le pied de page. */}
 
           {/* Boutons Droite */}
           <div className="flex items-center space-x-2 glassmorphism bg-black/60 px-2 py-1.5 rounded-full border border-white/10 shadow-2xl backdrop-blur-xl">

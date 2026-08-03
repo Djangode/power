@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { useState, useEffect, useCallback } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
@@ -21,8 +22,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/admin/ui/card"
 import {
   Plus, Search, MoreHorizontal, Edit, Trash2, Package, Eye, EyeOff, RefreshCw, ChefHat, X,
+  SlidersHorizontal,
 } from "lucide-react"
 import Image from "next/image"
+import CompositionChoicesEditor from "@/components/admin/composition-choices-editor"
+import { PRODUCT_UNITS } from "@/lib/units"
 
 interface Product {
   id: string
@@ -39,6 +43,7 @@ interface Product {
   supplier?: string | null
   origin?: string | null
   purchasePrice?: number | null
+  margin?: number | null
   categoryId?: string
 }
 
@@ -59,13 +64,7 @@ interface Category {
 
 type CreateType = "product" | "composition"
 
-const UNITS = [
-  { value: "kg", label: "Kilogramme (kg)" },
-  { value: "piece", label: "Pièce" },
-  { value: "botte", label: "Botte" },
-  { value: "barquette", label: "Barquette" },
-  { value: "lot", label: "Lot" },
-]
+const UNITS = PRODUCT_UNITS
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -75,6 +74,8 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [updating, setUpdating] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"products" | "compositions">("products")
+  // Composition dont on édite les formats et ingrédients (null = éditeur fermé).
+  const [choicesFor, setChoicesFor] = useState<{ id: string; name: string } | null>(null)
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -86,7 +87,7 @@ export default function ProductsPage() {
   const [productForm, setProductForm] = useState({
     name: "", description: "", price: "", unit: "kg", categoryId: "",
     image: "", organic: false, supplier: "", origin: "",
-    purchasePrice: "", currentStock: "0", minimumStock: "10",
+    purchasePrice: "", margin: "", currentStock: "0", minimumStock: "10",
   })
 
   // Composition form
@@ -222,7 +223,7 @@ export default function ProductsPage() {
         }
         setImagePreview(url)
       } else {
-        alert("Erreur lors de l'upload")
+        toast.error("Erreur lors de l'upload")
       }
     } catch (error) { console.error("Upload error:", error) }
     finally { setUploading(false) }
@@ -234,7 +235,7 @@ export default function ProductsPage() {
     setImagePreview(null)
     setOriginSearch("")
     if (type === "product") {
-      setProductForm({ name: "", description: "", price: "", unit: "kg", categoryId: "", image: "", organic: false, supplier: "", origin: "", purchasePrice: "", currentStock: "0", minimumStock: "10" })
+      setProductForm({ name: "", description: "", price: "", unit: "kg", categoryId: "", image: "", organic: false, supplier: "", origin: "", purchasePrice: "", margin: "", currentStock: "0", minimumStock: "10" })
     } else {
       setCompositionForm({ name: "", type: "jus", description: "", basePrice: "", imageUrl: "" })
       setTypeSearch("")
@@ -257,6 +258,7 @@ export default function ProductsPage() {
       supplier: product.supplier || "",
       origin: product.origin || "",
       purchasePrice: product.purchasePrice ? String(product.purchasePrice) : "",
+      margin: product.margin != null ? String(product.margin) : "",
       currentStock: String(product.current_stock),
       minimumStock: String(product.minimum_stock),
     })
@@ -300,7 +302,7 @@ export default function ProductsPage() {
     try {
       if (createType === "product") {
         if (!productForm.name || !productForm.price || !productForm.categoryId) {
-          alert("Nom, prix et catégorie sont obligatoires")
+          toast.error("Nom, prix et catégorie sont obligatoires")
           setSaving(false)
           return
         }
@@ -315,11 +317,11 @@ export default function ProductsPage() {
           loadAll()
         } else {
           const err = await res.json().catch(() => ({}))
-          alert(err.error || "Erreur lors de l'enregistrement du produit")
+          toast.error(err.error || "Erreur lors de l'enregistrement du produit")
         }
       } else {
         if (!compositionForm.name || !compositionForm.basePrice) {
-          alert("Nom et prix de base sont obligatoires")
+          toast.error("Nom et prix de base sont obligatoires")
           setSaving(false)
           return
         }
@@ -334,7 +336,7 @@ export default function ProductsPage() {
           loadAll()
         } else {
           const err = await res.json().catch(() => ({}))
-          alert(err.error || "Erreur lors de l'enregistrement de la composition")
+          toast.error(err.error || "Erreur lors de l'enregistrement de la composition")
         }
       }
     } catch (error) { console.error("Erreur:", error) }
@@ -521,10 +523,20 @@ export default function ProductsPage() {
                           <TableCell>{comp.basePrice.toFixed(2)}€</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => openEditComposition(comp)} disabled={updating === comp.id}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Formats et ingrédients de ${comp.name}`}
+                                title="Formats et ingrédients"
+                                onClick={() => setChoicesFor({ id: comp.id, name: comp.name })}
+                                disabled={updating === comp.id}
+                              >
+                                <SlidersHorizontal className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" aria-label={`Modifier ${comp.name}`} onClick={() => openEditComposition(comp)} disabled={updating === comp.id}>
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => deleteComposition(comp.id)} disabled={updating === comp.id}>
+                              <Button variant="ghost" size="sm" aria-label={`Supprimer ${comp.name}`} onClick={() => deleteComposition(comp.id)} disabled={updating === comp.id}>
                                 <Trash2 className="h-4 w-4 text-red-500" />
                               </Button>
                             </div>
@@ -655,10 +667,16 @@ export default function ProductsPage() {
                   </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label>Prix d'achat (€)</Label>
+                  <Label>Prix d&apos;achat (€)</Label>
                   <Input type="number" step="0.01" value={productForm.purchasePrice} onChange={(e) => setProductForm(f => ({ ...f, purchasePrice: e.target.value }))} placeholder="1.50" />
+                </div>
+                <div>
+                  {/* La marge alimente la rentabilité par produit en comptabilité. Sans ce
+                      champ ici, elle ne pouvait être saisie que depuis la page Stock. */}
+                  <Label>Marge (%)</Label>
+                  <Input type="number" step="1" value={productForm.margin} onChange={(e) => setProductForm(f => ({ ...f, margin: e.target.value }))} placeholder="40" />
                 </div>
                 <div>
                   <Label>Fournisseur</Label>
@@ -781,6 +799,14 @@ export default function ProductsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {choicesFor && (
+        <CompositionChoicesEditor
+          compositionId={choicesFor.id}
+          compositionName={choicesFor.name}
+          onClose={() => setChoicesFor(null)}
+        />
+      )}
     </SidebarProvider>
   )
 }

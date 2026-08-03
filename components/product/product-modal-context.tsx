@@ -14,6 +14,8 @@ interface Product {
   category: string
   inStock: boolean
   organic: boolean
+  /** Stock réel, transmis jusqu'à la modale pour borner la quantité commandable. */
+  currentStock?: number
 }
 
 interface ProductModalContextType {

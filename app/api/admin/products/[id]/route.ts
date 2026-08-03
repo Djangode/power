@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { normalizeUnit } from "@/lib/units"
 import { auth } from "@/auth"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +38,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         if (body.name !== undefined) data.name = String(body.name).trim()
         if (body.description !== undefined) data.description = body.description || null
-        if (body.unit !== undefined) data.unit = body.unit
+        if (body.unit !== undefined) data.unit = normalizeUnit(body.unit)
         if (body.image !== undefined) data.image = body.image || null
         if (body.inStock !== undefined) data.inStock = Boolean(body.inStock)
         if (body.organic !== undefined) data.organic = Boolean(body.organic)

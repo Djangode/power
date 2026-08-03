@@ -35,7 +35,7 @@ export default function HeroSection({ title, subtitle }: HeroSectionProps) {
       {/* Background Image */}
       <motion.div style={{ scale: scaleImage }} className="absolute inset-0">
         <Image
-          src="/power champ hero.png"
+          src="/power-champ-hero.webp"
           alt="Power Primeur - Fruits et légumes frais livrés à domicile"
           fill
           priority

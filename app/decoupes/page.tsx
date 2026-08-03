@@ -1,19 +1,21 @@
 import Header from "@/components/layout/header"
 import Footer from "@/components/layout/footer"
-import { prisma } from "@/lib/db"
-import Image from "next/image"
 import { Scissors } from "lucide-react"
-import AddToCartButton from "@/components/product/add-to-cart-button"
+import CompositionCard from "@/components/product/composition-card"
+import { getCompositionsByTypes } from "@/app/actions/compositions"
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = {
+    title: 'Plateaux de fruits et légumes découpés à composer — Power Primeur',
+    description:
+        "Composez votre plateau de fruits ou de légumes découpés : choisissez le format, " +
+        "la formule de base et vos suppléments. Retrait à Alfortville ou livraison.",
+    alternates: { canonical: '/decoupes' },
+}
+
 export default async function DecoupesPage() {
-    const compositions = await prisma.composition.findMany({
-        where: {
-            type: { in: ['legumes-decoupes', 'fruits-decoupes'] }
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    const { data: compositions } = await getCompositionsByTypes(['legumes-decoupes', 'fruits-decoupes'])
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -31,38 +33,16 @@ export default async function DecoupesPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {compositions.map((comp) => (
-                            <div key={comp.id} className="group glassmorphism bg-zinc-900/40 rounded-[48px] overflow-hidden border border-white/5 hover:border-orange-500/50 transition-all">
-                                <div className="relative h-72 overflow-hidden">
-                                    {comp.imageUrl ? (
-                                        <Image
-                                            src={comp.imageUrl}
-                                            alt={comp.name}
-                                            fill
-                                            className="object-cover group-hover:scale-110 transition-transform duration-1000"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-3xl font-black text-zinc-900 italic">DÉCOUPÉ</div>
-                                    )}
+                            <CompositionCard
+                                key={comp.id}
+                                composition={comp}
+                                fallbackLabel="DÉCOUPÉ"
+                                badge={
                                     <div className="absolute top-6 left-6 bg-black/60 backdrop-blur-xl border border-white/10 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-xs uppercase tracking-widest">
                                         <Scissors className="w-4 h-4 text-orange-500" /> Fraîcheur Garantie
                                     </div>
-                                </div>
-                                <div className="p-8">
-                                    <h3 className="text-2xl font-black uppercase italic mb-3 text-white group-hover:text-orange-500 transition-colors">{comp.name}</h3>
-                                    <p className="text-zinc-500 mb-6 line-clamp-2">
-                                        {comp.description || "Un produit ultra-frais, prêt pour vos recettes."}
-                                    </p>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-3xl font-black text-white">{comp.basePrice.toFixed(2)}€</span>
-                                        <AddToCartButton
-                                            compositionId={comp.id}
-                                            name={comp.name}
-                                            price={comp.basePrice}
-                                            className="h-12 px-6 text-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                                }
+                            />
                         ))}
                     </div>
 

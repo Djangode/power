@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import React, { useState } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
@@ -53,7 +54,7 @@ export default function MarketingPage() {
 
   const handleSend = async () => {
     if (!subject.trim() || !message.trim()) {
-      alert("Veuillez remplir le sujet et le message")
+      toast.error("Veuillez remplir le sujet et le message")
       return
     }
     if (!confirm("Envoyer cet email à tous les clients ?")) return
@@ -80,10 +81,10 @@ export default function MarketingPage() {
         setSent(true)
         setLastResult({ sent: data.sent, promoCode: data.promoCode })
       } else {
-        alert(`Erreur : ${data.error || "Impossible d'envoyer"}`)
+        toast.error(`Erreur : ${data.error || "Impossible d'envoyer"}`)
       }
     } catch {
-      alert("Erreur réseau")
+      toast.error("Erreur réseau")
     } finally {
       setSending(false)
     }

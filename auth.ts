@@ -38,10 +38,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     const { email, password } = parsedCredentials.data
 
                     const user = await prisma.user.findUnique({
-                        where: { email }
+                        // Même normalisation qu'à l'inscription, sinon une casse différente
+                        // à la saisie empêche de se connecter à son propre compte.
+                        where: { email: email.trim().toLowerCase() }
                     })
 
                     if (!user) return null
+
+                    // Les comptes créés via Google n'ont pas de mot de passe : refuser d'emblée
+                    // plutôt que de laisser bcrypt comparer contre une chaîne vide.
+                    if (!user.password) return null
 
                     const passwordsMatch = await bcrypt.compare(password, user.password)
 

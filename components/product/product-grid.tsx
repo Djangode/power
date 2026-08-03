@@ -5,8 +5,7 @@ import { Search } from "lucide-react"
 import ProductCard from "./product-card"
 import ProductCardMobile from "./product-card-mobile"
 import CompositionMobileItem from "./composition-mobile-item"
-import CompositionModal from "./composition-modal"
-import CompositionBottomSheet from "./composition-bottom-sheet"
+import CompositionSheet from "./composition-sheet"
 import { ProductModalProvider, useProductModal } from "./product-modal-context"
 import ImageWithFallback from "./image-with-fallback"
 
@@ -21,6 +20,8 @@ interface Product {
   categorySlug?: string
   inStock: boolean
   organic: boolean
+  /** Stock réel, transmis jusqu'à la modale pour borner la quantité commandable. */
+  currentStock?: number
 }
 
 interface Composition {
@@ -28,8 +29,13 @@ interface Composition {
   name: string
   type: string
   basePrice: number
-  description: string
+  description: string | null
   image: string
+  imageUrl?: string | null
+  /** Formats de vente définis en admin, avec leur prix propre. */
+  sizes?: { id: string; name: string; price: number; description?: string | null; isDefault?: boolean }[]
+  /** Ingrédients : formule standard incluse, ou supplément payant. */
+  options?: { id: string; name: string; extraPrice: number; includedByDefault?: boolean; isRemovable?: boolean }[]
 }
 
 interface ProductGridProps {
@@ -234,31 +240,18 @@ function ProductGridInner({ products, compositions = [], categories = [] }: Prod
       )}
 
       {selectedComposition && (
-        isMobile ? (
-          <CompositionBottomSheet
-            composition={selectedComposition}
-            isOpen={!!selectedComposition}
-            onClose={() => setSelectedComposition(null)}
-            availableProducts={products.map(p => ({
-              id: p.id,
-              name: p.name,
-              price: p.price,
-              category: p.category,
-            }))}
-          />
-        ) : (
-          <CompositionModal
-            composition={selectedComposition}
-            isOpen={!!selectedComposition}
-            onClose={() => setSelectedComposition(null)}
-            availableProducts={products.map(p => ({
-              id: p.id,
-              name: p.name,
-              price: p.price,
-              category: p.category,
-            }))}
-          />
-        )
+        <CompositionSheet
+          composition={{
+            ...selectedComposition,
+            // La grille reçoit l'image sous `image` ; le configurateur attend `imageUrl`.
+            imageUrl: selectedComposition.imageUrl ?? selectedComposition.image ?? null,
+            sizes: selectedComposition.sizes ?? [],
+            options: selectedComposition.options ?? [],
+          }}
+          isOpen={!!selectedComposition}
+          onClose={() => setSelectedComposition(null)}
+          isMobile={isMobile}
+        />
       )}
     </>
   )

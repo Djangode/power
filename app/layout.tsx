@@ -64,7 +64,26 @@ export default function RootLayout({
           />
           {children}
           <CookieConsent />
-          <Toaster position="top-center" richColors />
+          {/* Notifications centralisées : un seul Toaster pour toute l'application,
+              placé en bas à droite. Les couleurs viennent d'ici — les appels toast.*()
+              ne portent aucun style, sinon chaque écran finit avec sa propre variante. */}
+          <Toaster
+            position="bottom-right"
+            richColors
+            closeButton
+            expand
+            duration={4000}
+            toastOptions={{
+              classNames: {
+                toast: "rounded-xl border shadow-xl",
+                success: "!bg-orange-500 !text-white !border-orange-600",
+                error: "!bg-red-600 !text-white !border-red-700",
+                info: "!bg-zinc-900 !text-white !border-zinc-700",
+                warning: "!bg-amber-500 !text-white !border-amber-600",
+                closeButton: "!bg-black/20 !text-white !border-transparent",
+              },
+            }}
+          />
         </SessionProvider>
       </body>
     </html>

@@ -2,6 +2,8 @@
 // Utilisé à la fois côté client (affichage panier) et côté serveur (facturation),
 // pour garantir que le montant affiché = le montant facturé.
 
+import { compositionPrice } from "@/lib/composition-pricing"
+
 export const SIZE_MULTIPLIERS: Record<string, number> = {
   small: 0.7,
   standard: 1,
@@ -44,22 +46,43 @@ export function compositionUnitPrice(
   return round2((basePrice + ingredientsTotal) * sizeMultiplier(customData?.size))
 }
 
-/** Prix unitaire d'un item de panier, qu'il s'agisse d'un produit simple ou d'une composition. */
+/**
+ * Prix unitaire d'un item de panier, qu'il s'agisse d'un produit simple ou d'une composition.
+ *
+ * Une composition dotée de formats est tarifée par `compositionPrice` : prix du format
+ * retenu plus les suppléments cochés. L'ancien mode — prix de base plus le tarif au kilo
+ * des ingrédients pris dans le catalogue — ne subsiste que pour les compositions créées
+ * avant l'introduction des formats, le temps qu'elles soient configurées en admin.
+ */
 export function cartItemUnitPrice(
   item: {
     product?: { price: number } | null
-    composition?: { basePrice: number } | null
+    composition?: {
+      basePrice: number
+      sizes?: { id: string; name: string; price: number; isDefault?: boolean }[]
+      options?: { id: string; name: string; extraPrice: number; includedByDefault?: boolean }[]
+    } | null
     customData?: any
   },
   ingredientPrices?: Map<string, number>,
 ): number {
   if (item.product) return item.product.price
-  if (item.composition) {
-    return item.customData
-      ? compositionUnitPrice(item.composition.basePrice, item.customData, ingredientPrices)
-      : item.composition.basePrice
+  if (!item.composition) return 0
+
+  const { basePrice, sizes = [], options = [] } = item.composition
+
+  if (sizes.length || options.length) {
+    return compositionPrice(
+      { sizeId: item.customData?.sizeId ?? null, optionIds: item.customData?.optionIds ?? [] },
+      sizes,
+      options,
+      basePrice,
+    )
   }
-  return 0
+
+  return item.customData
+    ? compositionUnitPrice(basePrice, item.customData, ingredientPrices)
+    : basePrice
 }
 
 /**

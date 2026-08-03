@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Activer Yarn
+        run: corepack enable
+
+      - name: Installer les dépendances
+        run: yarn install --immutable
+        env:
+          # `postinstall` lance `prisma generate`, qui n'a pas besoin d'une vraie base
+          # mais exige que la variable existe.
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Tests
+        run: yarn test

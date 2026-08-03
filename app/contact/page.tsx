@@ -24,9 +24,7 @@ export default function ContactPage() {
         try {
             const res = await submitContactForm(formData)
             if (res.success) {
-                toast.success("Message envoyé avec succès !", {
-                    style: { background: "#f97316", color: "#fff", border: "none" }
-                })
+                toast.success("Message envoyé avec succès !")
                 setFormData({ name: "", email: "", subject: "Question sur une commande", message: "" })
             } else {
                 toast.error(res.error || "Erreur lors de l'envoi")

@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import React, { useState } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
@@ -167,7 +168,8 @@ export default function TeamPage() {
           firstName: newEmployee.firstName,
           lastName: newEmployee.lastName,
           email: newEmployee.email,
-          password: "Power2024!", // Mot de passe temporaire
+          // Aucun mot de passe ici : le serveur en génère un aléatoire et l'envoie
+          // directement à l'employé par email.
           phone: newEmployee.phone,
           role: newEmployee.role,
           salary: newEmployee.salary ? parseFloat(newEmployee.salary) : undefined,
@@ -191,11 +193,11 @@ export default function TeamPage() {
         })
       } else {
         const data = await res.json()
-        alert(data.error || "Erreur lors de l'ajout")
+        toast.error(data.error || "Erreur lors de l'ajout")
       }
     } catch (error) {
       console.error("Erreur ajout employé:", error)
-      alert("Erreur lors de l'ajout de l'employé")
+      toast.error("Erreur lors de l'ajout de l'employé")
     }
   }
 
@@ -220,12 +222,12 @@ export default function TeamPage() {
             ? { ...e, accountCreated: true, hasAccount: true }
             : e
         ))
-        alert(`✅ Invitation envoyée à ${emp.email} !`)
+        toast.success(`Invitation envoyée à ${emp.email}`)
       } else {
-        alert(`❌ Erreur : ${data.error || "Impossible d'envoyer l'invitation"}`)
+        toast.error(data.error || "Impossible d'envoyer l'invitation")
       }
     } catch {
-      alert("❌ Erreur réseau")
+      toast.error("Erreur réseau")
     } finally {
       setInvitingId(null)
     }
@@ -247,11 +249,11 @@ export default function TeamPage() {
         ))
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || "Erreur lors du changement de statut.")
+        toast.error(data.error || "Erreur lors du changement de statut.")
       }
     } catch (error) {
       console.error("Erreur changement statut employé:", error)
-      alert("Erreur lors du changement de statut.")
+      toast.error("Erreur lors du changement de statut.")
     }
   }
 
@@ -270,11 +272,11 @@ export default function TeamPage() {
         )
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || "Erreur lors du changement de rôle.")
+        toast.error(data.error || "Erreur lors du changement de rôle.")
       }
     } catch (error) {
       console.error("Erreur changement rôle employé:", error)
-      alert("Erreur lors du changement de rôle.")
+      toast.error("Erreur lors du changement de rôle.")
     }
   }
 

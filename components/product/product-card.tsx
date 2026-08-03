@@ -79,7 +79,23 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
 
   return (
     <Card className="group bg-zinc-950 border-zinc-800 rounded-[40px] overflow-hidden hover:border-orange-500/50 transition-all duration-500 h-full flex flex-col">
-      <CardContent className="p-0 relative">
+      {/* Toute la zone visuelle et textuelle ouvre le détail : obliger à viser l'icône œil
+          est une cible inutilement petite, et le réflexe est de cliquer sur la carte.
+          Le pied de carte reste hors de cette zone pour que « Ajouter au panier » et les
+          boutons +/− ne déclenchent pas l'ouverture. */}
+      <CardContent
+        className="p-0 relative cursor-pointer"
+        role="button"
+        tabIndex={0}
+        aria-label={`Voir le détail de ${product.name}`}
+        onClick={onViewDetails}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onViewDetails?.()
+          }
+        }}
+      >
         <div className="relative aspect-square overflow-hidden bg-zinc-800">
           <Image
             src={imgError ? "/placeholder.svg" : (product.image || "/placeholder.svg")}
@@ -104,14 +120,14 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
             )}
           </div>
 
-          <Button
-            size="icon"
-            aria-label={`Voir les détails de ${product.name}`}
-            className="absolute top-6 right-6 h-12 w-12 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-orange-500 hover:border-orange-500"
-            onClick={onViewDetails}
+          {/* Repère visuel seulement : la carte entière est cliquable, un bouton ici
+              déclencherait l'ouverture deux fois par propagation. */}
+          <div
+            aria-hidden="true"
+            className="absolute top-6 right-6 h-12 w-12 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center group-hover:bg-orange-500 group-hover:border-orange-500"
           >
             <Eye className="h-5 w-5" />
-          </Button>
+          </div>
 
           <div className="absolute bottom-6 left-6 right-6">
             <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between">

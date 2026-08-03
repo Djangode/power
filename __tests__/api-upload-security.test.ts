@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * TESTS — Upload de fichiers (après sécurisation)
@@ -23,6 +23,12 @@ vi.mock('sharp', () => ({
 
 vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+}))
+
+const mockBlobPut = vi.fn()
+vi.mock('@vercel/blob', () => ({
+  put: (...args: unknown[]) => mockBlobPut(...args),
 }))
 
 import { POST } from '@/app/api/upload/route'
@@ -114,5 +120,34 @@ describe('POST /api/upload — SECURISE', () => {
     // Le nom est genere cote serveur, pas depuis le client
     expect(data.url).toMatch(/^\/uploads\/\d+-[a-z0-9]+\.webp$/)
     expect(data.url).not.toContain('..')
+  })
+
+  // Comportement de production : le disque est en lecture seule sur Vercel, l'image doit
+  // partir sur Vercel Blob. C'est le chemin qui était cassé et qui laissait le catalogue
+  // sans aucune photo.
+  describe('stockage en production', () => {
+    const OLD_ENV = process.env.BLOB_READ_WRITE_TOKEN
+
+    afterEach(() => {
+      if (OLD_ENV === undefined) delete process.env.BLOB_READ_WRITE_TOKEN
+      else process.env.BLOB_READ_WRITE_TOKEN = OLD_ENV
+    })
+
+    it('devrait televerser vers Vercel Blob quand le jeton est present', async () => {
+      process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_test'
+      mockBlobPut.mockResolvedValueOnce({ url: 'https://abc.public.blob.vercel-storage.com/products/x.webp' })
+      mockAuth.mockResolvedValueOnce({ user: { role: 'admin' } })
+
+      const res = await POST(makeUploadRequest('photo.jpg', 'image/jpeg'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.url).toBe('https://abc.public.blob.vercel-storage.com/products/x.webp')
+      expect(mockBlobPut).toHaveBeenCalledWith(
+        expect.stringMatching(/^products\/\d+-[a-z0-9]+\.webp$/),
+        expect.anything(),
+        expect.objectContaining({ access: 'public', contentType: 'image/webp' }),
+      )
+    })
   })
 })

@@ -72,6 +72,19 @@ const ALLOWED_SETTING_KEYS = [
     "delivery_fee",
     "free_delivery_threshold",
     "order_notification_email",
+    // Mentions obligatoires sur une facture française (art. 242 nonies A CGI, art. L441-9
+    // du code de commerce). Seul le commerçant détient ces valeurs : elles se saisissent
+    // dans l'admin, la facture signale leur absence plutôt que d'inventer.
+    "company_legal_name",
+    "company_legal_form",
+    "company_address",
+    "company_siret",
+    "company_rcs",
+    "company_vat_number",
+    "company_phone",
+    "vat_regime",
+    "vat_rate",
+    "payment_terms",
 ] as const
 
 type AllowedSettingKey = (typeof ALLOWED_SETTING_KEYS)[number]
@@ -159,6 +172,82 @@ export async function getOrderNotificationEmail(): Promise<string> {
     } catch (error) {
         console.error("Error fetching order notification email:", error)
         return FALLBACK_EMAIL
+    }
+}
+
+/** Régime de TVA du commerce, qui détermine ce que la facture doit afficher. */
+export type VatRegime = "franchise" | "assujetti"
+
+export type InvoiceSettings = {
+    legalName: string
+    legalForm: string
+    address: string
+    siret: string
+    rcs: string
+    vatNumber: string
+    phone: string
+    email: string
+    vatRegime: VatRegime
+    /** Taux de TVA appliqué, en pourcentage. 5,5 % pour les fruits et légumes frais. */
+    vatRate: number
+    paymentTerms: string
+    /** Mentions obligatoires non renseignées : la facture le signale au lieu de les inventer. */
+    missing: string[]
+}
+
+/**
+ * Lit les informations légales de l'entreprise pour la facturation.
+ * Lecture publique : appelable côté serveur dans une route sans contrôle admin.
+ *
+ * Aucune valeur légale n'est inventée. Les champs non saisis dans l'admin remontent dans
+ * `missing`, ce qui permet à la facture d'afficher un avertissement explicite : une facture
+ * sans SIRET ni mention de TVA n'est pas conforme, mieux vaut le dire que le masquer.
+ */
+export async function getInvoiceSettings(): Promise<InvoiceSettings> {
+    const REQUIRED: Record<string, string> = {
+        company_legal_name: "Raison sociale",
+        company_address: "Adresse de l'entreprise",
+        company_siret: "Numéro SIRET",
+        vat_regime: "Régime de TVA",
+    }
+
+    let map: Record<string, string> = {}
+    try {
+        const settings = await prisma.siteSetting.findMany({
+            where: {
+                key: {
+                    in: [
+                        "company_legal_name", "company_legal_form", "company_address",
+                        "company_siret", "company_rcs", "company_vat_number", "company_phone",
+                        "contact_email", "vat_regime", "vat_rate", "payment_terms",
+                    ],
+                },
+            },
+        })
+        for (const s of settings) map[s.key] = s.value
+    } catch (error) {
+        console.error("Error fetching invoice settings:", error)
+    }
+
+    const missing = Object.entries(REQUIRED)
+        .filter(([key]) => !map[key]?.trim())
+        .map(([, label]) => label)
+
+    const parsedRate = parseFloat(map["vat_rate"] ?? "")
+
+    return {
+        legalName: map["company_legal_name"]?.trim() || "Power — Primeur",
+        legalForm: map["company_legal_form"]?.trim() || "",
+        address: map["company_address"]?.trim() || "114 Rue Paul Vaillant Couturier, 94140 Alfortville",
+        siret: map["company_siret"]?.trim() || "",
+        rcs: map["company_rcs"]?.trim() || "",
+        vatNumber: map["company_vat_number"]?.trim() || "",
+        phone: map["company_phone"]?.trim() || "",
+        email: map["contact_email"]?.trim() || "contact@powerprimeur.com",
+        vatRegime: map["vat_regime"]?.trim() === "assujetti" ? "assujetti" : "franchise",
+        vatRate: Number.isNaN(parsedRate) ? 5.5 : parsedRate,
+        paymentTerms: map["payment_terms"]?.trim() || "Paiement comptant à la réception de la commande.",
+        missing,
     }
 }
 

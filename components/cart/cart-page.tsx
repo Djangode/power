@@ -10,7 +10,8 @@ import DeliveryCalendar from "@/components/delivery/delivery-calendar"
 import { ShoppingBag, Truck, Calendar, Loader2 } from "lucide-react"
 import { getCartItems, updateCartItemQuantity, removeCartItem, clearCart } from "@/app/actions/cart"
 import { getDeliveryConfig } from "@/app/actions/content"
-import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { cartItemUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { describeSelection } from "@/lib/composition-pricing"
 
 interface DeliveryInfo {
   date: string
@@ -92,9 +93,14 @@ export default function CartPage() {
         stock: item.product.currentStock ?? (item.product.inStock ? 99 : 0)
       }
     } else if (item.composition) {
-      const customPrice = item.customData
-        ? compositionUnitPrice(item.composition.basePrice, item.customData)
-        : item.composition.basePrice
+      // Même fonction de calcul que le serveur : le total du panier ne doit jamais
+      // diverger du montant facturé à la commande.
+      const customPrice = cartItemUnitPrice(item)
+      const detail = describeSelection(
+        { sizeId: item.customData?.sizeId, optionIds: item.customData?.optionIds },
+        item.composition.sizes ?? [],
+        item.composition.options ?? [],
+      )
       return {
         id: item.id,
         name: item.composition.name,
@@ -104,7 +110,8 @@ export default function CartPage() {
         image: item.composition.imageUrl || '/placeholder.svg',
         total: customPrice * item.quantity,
         stock: 50,
-        customData: item.customData || null
+        customData: item.customData || null,
+        selection: detail,
       }
     }
     return null

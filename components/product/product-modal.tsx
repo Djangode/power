@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ShoppingCart, Leaf, Truck, Shield, Loader2 } from "lucide-react"
 import { addToCart } from "@/app/actions/cart"
 import { toast } from "sonner"
+import QuantitySelector from "@/components/product/quantity-selector"
+import { minQuantity, formatQuantity, lineTotal } from "@/lib/units"
 
 interface Product {
   id: string
@@ -21,6 +22,8 @@ interface Product {
   category: string
   inStock: boolean
   organic: boolean
+  /** Stock réel : borne la quantité commandable. */
+  currentStock?: number
 }
 
 interface ProductModalProps {
@@ -30,24 +33,31 @@ interface ProductModalProps {
 }
 
 export default function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
-  const [quantity, setQuantity] = useState("1")
-  const [packaging, setPackaging] = useState("standard")
+  const [quantity, setQuantity] = useState(() => minQuantity(product.unit))
   const [isAdding, setIsAdding] = useState(false)
+
+  // Le provider monte cette modale une seule fois et ne change que le produit en props :
+  // sans cette remise à zéro, la quantité d'un article au poids (0,2 kg) restait affichée
+  // sur l'article suivant vendu à la pièce, soit « 0,2 pièce ».
+  useEffect(() => {
+    setQuantity(minQuantity(product.unit))
+  }, [product.id, product.unit])
 
   const handleAddToCart = async () => {
     setIsAdding(true)
     try {
-      const result = await addToCart({ productId: product.id, quantity: parseInt(quantity) })
+      const result = await addToCart({ productId: product.id, quantity })
       if (result.success) {
-        toast.success(`${quantity} x ${product.name} ajouté au panier !`, {
-          style: { background: "#f97316", color: "#fff", border: "none" }
-        })
+        toast.success(`${formatQuantity(quantity, product.unit)} de ${product.name} ajouté au panier`)
         onClose()
       } else {
-        toast.error("Erreur lors de l'ajout au panier.")
+        // Le message serveur porte l'information utile (stock restant, produit retiré) :
+        // l'afficher évite un « Erreur » opaque devant lequel le client abandonne.
+        toast.error(result.error || "Erreur lors de l'ajout au panier.")
       }
     } catch (error) {
       console.error(error)
+      toast.error("Une erreur est survenue")
     } finally {
       setIsAdding(false)
     }
@@ -101,37 +111,16 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
 
             <Separator className="bg-zinc-200" />
 
-            {/* Quantity and Packaging */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-2">Quantité</label>
-                <Select value={quantity} onValueChange={setQuantity}>
-                  <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 10].map((num) => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} {product.unit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-2">Conditionnement</label>
-                <Select value={packaging} onValueChange={setPackaging}>
-                  <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="eco">Éco-responsable</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Quantité */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-2">Quantité</label>
+              <QuantitySelector
+                value={quantity}
+                onChange={setQuantity}
+                unit={product.unit}
+                max={product.currentStock}
+                disabled={!product.inStock}
+              />
             </div>
 
             <Separator className="bg-zinc-200" />
@@ -157,9 +146,9 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
             {/* Add to Cart */}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-lg font-semibold text-zinc-900">
-                <span>Total:</span>
+                <span>Total :</span>
                 <span className="text-orange-500">
-                  {(product.price * Number.parseInt(quantity)).toFixed(2)}€
+                  {lineTotal(product.price, quantity).toFixed(2)}€
                 </span>
               </div>
 

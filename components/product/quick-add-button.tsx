@@ -24,9 +24,7 @@ export default function QuickAddButton({ itemId, itemType, itemName }: QuickAddB
                     : { compositionId: itemId, quantity: 1 }
             )
             if (result.success) {
-                toast.success(`1 x ${itemName} ajouté au panier !`, {
-                    style: { background: "#f97316", color: "#fff", border: "none" }
-                })
+                toast.success(`1 x ${itemName} ajouté au panier !`)
             } else {
                 toast.error("Erreur lors de l'ajout au panier.", {
                     style: { background: "#ef4444", color: "#fff", border: "none" }

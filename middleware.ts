@@ -33,7 +33,9 @@ export default auth((req) => {
   // ============================================
   // Protection des routes utilisateur authentifié
   // ============================================
-  const protectedRoutes = ["/mon-compte", "/commande"]
+  // "/commandes" (historique) : l'API filtre déjà sur le propriétaire, mais sans redirection
+  // un visiteur déconnecté reste sur un écran de chargement puis une erreur brute.
+  const protectedRoutes = ["/mon-compte", "/commande", "/commandes"]
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
   if (isProtectedRoute && !isLoggedIn) {
     return NextResponse.redirect(new URL("/connexion", req.url))
@@ -55,6 +57,7 @@ export const config = {
     "/api/admin/:path*",
     "/mon-compte/:path*",
     "/commande/:path*",
+    "/commandes/:path*",
     "/connexion",
   ],
 }

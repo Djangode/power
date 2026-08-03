@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/auth"
 import { z } from "zod"
+import { normalizeUnit } from "@/lib/units"
 
 const productSchema = z.object({
     name: z.string().min(1, "Le nom est requis").max(200),
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
                 name: data.name,
                 description: data.description || null,
                 price: data.price,
-                unit: data.unit,
+                unit: normalizeUnit(data.unit),
                 image: data.image || null,
                 inStock: data.inStock,
                 organic: data.organic,

@@ -2,12 +2,15 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { sendWelcomeEmail } from "@/lib/email"
 
 const registerSchema = z.object({
-    email: z.string().email("Email invalide"),
+    // L'email est normalisé dès la validation : sans cela « Jean@x.fr » et « jean@x.fr »
+    // créent deux comptes distincts, et le second login échoue silencieusement.
+    email: z.string().email("Email invalide").transform((v) => v.trim().toLowerCase()),
     password: z.string().min(8, "Le mot de passe doit faire au moins 8 caractères"),
-    firstName: z.string().min(1, "Le prénom est requis"),
-    lastName: z.string().min(1, "Le nom est requis"),
+    firstName: z.string().min(1, "Le prénom est requis").transform((v) => v.trim()),
+    lastName: z.string().min(1, "Le nom est requis").transform((v) => v.trim()),
 })
 
 export async function POST(req: Request) {
@@ -46,6 +49,14 @@ export async function POST(req: Request) {
                 role: "user",
             }
         })
+
+        // Email de bienvenue — non bloquant : le compte est déjà créé, une panne Resend
+        // ne doit pas transformer une inscription réussie en erreur côté client.
+        try {
+            await sendWelcomeEmail(user.email, user.firstName || "")
+        } catch (emailError) {
+            console.error("⚠️ Email de bienvenue échoué:", emailError)
+        }
 
         return NextResponse.json({
             success: true,

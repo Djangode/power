@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import React, { useState } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
@@ -158,11 +159,11 @@ export default function CustomersPage() {
       })
       if (res.ok) return true
       const data = await res.json().catch(() => ({}))
-      alert(data.error || "Erreur lors de l'enregistrement.")
+      toast.error(data.error || "Erreur lors de l'enregistrement.")
       return false
     } catch (error) {
       console.error("Erreur enregistrement client:", error)
-      alert("Erreur lors de l'enregistrement.")
+      toast.error("Erreur lors de l'enregistrement.")
       return false
     }
   }

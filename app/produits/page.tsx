@@ -9,6 +9,14 @@ import AddToCartButton from "@/components/product/add-to-cart-button"
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = {
+    title: 'Tous nos produits frais — Power Primeur Alfortville',
+    description:
+        "Fruits, légumes et aromates frais de saison. Retrait en magasin à Alfortville ou " +
+        "livraison en Île-de-France. Commandez en ligne, payez à la réception.",
+    alternates: { canonical: '/produits' },
+}
+
 export default async function ProductsPage() {
     const products = await prisma.product.findMany({
         where: { inStock: true },
@@ -31,7 +39,10 @@ export default async function ProductsPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {products.map((product) => (
+                        {products.map((product) => {
+                            const isOutOfStock = product.currentStock <= 0
+                            const isLowStock = !isOutOfStock && product.currentStock <= 5
+                            return (
                             <div key={product.id} className="group glassmorphism bg-zinc-900/40 rounded-3xl overflow-hidden border border-white/5 hover:border-orange-500/50 transition-all duration-500 flex flex-col">
                                 <div className="relative aspect-square overflow-hidden bg-zinc-800">
                                     {product.image ? (
@@ -39,7 +50,8 @@ export default async function ProductsPage() {
                                             src={product.image}
                                             alt={product.name}
                                             fill
-                                            className="object-cover group-hover:scale-110 transition-transform duration-700"
+                                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                                            className={`object-cover group-hover:scale-110 transition-transform duration-700 ${isOutOfStock ? "opacity-40 grayscale" : ""}`}
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-zinc-600">Aucune image</div>
@@ -47,6 +59,16 @@ export default async function ProductsPage() {
                                     {product.organic && (
                                         <div className="absolute top-4 left-4 bg-green-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
                                             <Leaf className="w-3 h-3" /> BIO
+                                        </div>
+                                    )}
+                                    {isOutOfStock && (
+                                        <div className="absolute top-4 right-4 bg-zinc-950/90 backdrop-blur-md text-zinc-200 text-[10px] font-bold px-2 py-1 rounded-full border border-white/10">
+                                            ÉPUISÉ
+                                        </div>
+                                    )}
+                                    {isLowStock && (
+                                        <div className="absolute top-4 right-4 bg-orange-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                                            PLUS QUE {product.currentStock}
                                         </div>
                                     )}
                                     <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm font-bold border border-white/10">
@@ -66,18 +88,21 @@ export default async function ProductsPage() {
                                             productId={product.id}
                                             name={product.name}
                                             price={product.price}
+                                            outOfStock={isOutOfStock}
+                                            compact
                                             className="h-12 text-sm rounded-2xl flex-1"
                                         />
                                         <Button variant="outline" size="icon" className="rounded-2xl border-white/10 hover:bg-white/5 h-12 w-12" asChild>
                                             <Link href={`/produits/${product.id}`}>
-                                                <span className="sr-only">Détails</span>
+                                                <span className="sr-only">Voir le détail de {product.name}</span>
                                                 +
                                             </Link>
                                         </Button>
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            )
+                        })}
                     </div>
 
                     {products.length === 0 && (

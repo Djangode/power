@@ -1,5 +1,7 @@
 "use client"
 
+import { toast } from "sonner"
+import { PRODUCT_UNITS } from "@/lib/units"
 import React, { useState } from "react"
 import { AppSidebar } from "@/components/admin/app-sidebar"
 import { SiteHeader } from "@/components/admin/site-header"
@@ -95,6 +97,8 @@ export default function StockPage() {
     productName: "",
     description: "",
     categoryId: "",
+    unit: "kg",
+    organic: false,
     supplier: "",
     origin: "",
     purchasePrice: 0,
@@ -178,11 +182,11 @@ export default function StockPage() {
 
   const handleAddProduct = async () => {
     if (!formData.productName.trim()) {
-      alert("Le nom du produit est requis.")
+      toast.error("Le nom du produit est requis.")
       return
     }
     if (!formData.categoryId) {
-      alert("La catégorie est requise.")
+      toast.error("La catégorie est requise.")
       return
     }
 
@@ -197,10 +201,10 @@ export default function StockPage() {
           name: formData.productName,
           description: formData.description || null,
           price: Number(sellingPrice.toFixed(2)),
-          unit: "kg",
+          unit: formData.unit,
           image: null,
           inStock: formData.currentStock > 0,
-          organic: false,
+          organic: formData.organic,
           supplier: formData.supplier || null,
           origin: formData.origin || null,
           purchasePrice: formData.purchasePrice,
@@ -217,6 +221,8 @@ export default function StockPage() {
           productName: "",
           description: "",
           categoryId: "",
+          unit: "kg",
+          organic: false,
           supplier: "",
           origin: "",
           purchasePrice: 0,
@@ -227,11 +233,11 @@ export default function StockPage() {
         setIsAddModalOpen(false)
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || "Erreur lors de la création du produit.")
+        toast.error(data.error || "Erreur lors de la création du produit.")
       }
     } catch (error) {
       console.error("Erreur création produit:", error)
-      alert("Erreur lors de la création du produit.")
+      toast.error("Erreur lors de la création du produit.")
     } finally {
       setSaving(false)
     }
@@ -255,7 +261,7 @@ export default function StockPage() {
   const handleEditProduct = async () => {
     if (!selectedItem) return
     if (!editForm.productName.trim()) {
-      alert("Le nom du produit est requis.")
+      toast.error("Le nom du produit est requis.")
       return
     }
 
@@ -284,11 +290,11 @@ export default function StockPage() {
         setSelectedItem(null)
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || "Erreur lors de la modification du produit.")
+        toast.error(data.error || "Erreur lors de la modification du produit.")
       }
     } catch (error) {
       console.error("Erreur modification produit:", error)
-      alert("Erreur lors de la modification du produit.")
+      toast.error("Erreur lors de la modification du produit.")
     } finally {
       setSaving(false)
     }
@@ -484,6 +490,39 @@ export default function StockPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Unité de vente et mention bio : ces deux champs partaient en dur (« kg », non bio),
+              ce qui obligeait à repasser par la page Produits pour vendre à la pièce ou
+              signaler un produit biologique. */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Unité de vente</Label>
+              <Select
+                value={formData.unit}
+                onValueChange={(value) => setFormData({ ...formData, unit: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir une unité" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_UNITS.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.organic}
+                  onChange={(e) => setFormData({ ...formData, organic: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                Produit biologique
+              </label>
             </div>
           </div>
 

@@ -54,14 +54,28 @@ export async function GET() {
 const createEmployeeSchema = z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
-    email: z.string().email(),
-    password: z.string().min(6),
+    // L'email est normalisé comme à l'inscription, sinon une casse différente crée un
+    // doublon de compte que l'employé ne pourra pas utiliser.
+    email: z.string().email().transform((v) => v.trim().toLowerCase()),
     phone: z.string().optional(),
     role: z.enum(["admin", "cashier", "preparation", "delivery"]),
     salary: z.number().optional(),
     salaryType: z.enum(["hourly", "monthly"]).optional(),
     hoursPerWeek: z.number().optional(),
 })
+
+/**
+ * Mot de passe provisoire de l'employé.
+ *
+ * Généré ici, jamais envoyé par le navigateur : un mot de passe fixé côté client serait
+ * lisible dans le bundle, identique pour toute l'équipe, et permettrait à quiconque
+ * connaît un email de personnel de se connecter.
+ */
+function generateTemporaryPassword(): string {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+    const bytes = crypto.getRandomValues(new Uint32Array(16))
+    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -77,13 +91,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
         }
 
-        const { password, ...rest } = parsed.data
+        const rest = parsed.data
 
         const existing = await prisma.user.findUnique({ where: { email: rest.email } })
         if (existing) {
             return NextResponse.json({ error: "Un utilisateur avec cet email existe déjà" }, { status: 409 })
         }
 
+        const password = generateTemporaryPassword()
         const hashedPassword = await bcrypt.hash(password, 12)
 
         const employee = await prisma.user.create({

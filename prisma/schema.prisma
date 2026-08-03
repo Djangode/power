@@ -76,8 +76,8 @@ model Product {
   origin      String?
   purchasePrice Float?
   margin      Float?
-  currentStock Int      @default(0)
-  minimumStock Int      @default(10)
+  currentStock Float      @default(0)
+  minimumStock Float      @default(10)
 
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id])
@@ -93,13 +93,68 @@ model Composition {
   name        String
   type        String   // e.g "jus", "soupe", "legumes-decoupes"
   description String?
+  /// Prix de repli quand la composition n'a pas encore de taille définie.
+  /// Dès qu'une CompositionSize existe, c'est elle qui fixe le prix.
   basePrice   Float
   imageUrl    String?
+
+  sizes       CompositionSize[]
+  options     CompositionOption[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   orderItems  OrderItem[]
   cartItems   CartItem[]
+}
+
+/// Format de vente d'une composition, avec son prix propre.
+/// Un plateau de fruits n'est pas vendu au poids : chaque taille a un tarif fixe,
+/// et non un multiplicateur appliqué à un prix de base.
+model CompositionSize {
+  id            String      @id @default(cuid())
+  compositionId String
+  composition   Composition @relation(fields: [compositionId], references: [id], onDelete: Cascade)
+
+  name          String      // "Petit", "Moyen", "Grand", "6 personnes"...
+  price         Float
+  description   String?     // "environ 400 g", "2 à 3 personnes"
+  isDefault     Boolean     @default(false)
+  order         Int         @default(0)
+
+  /// Nombre d'ingrédients compris dans le prix, choisis librement par le client.
+  /// Un smoothie « 2 fruits au choix » vaut 2 ici : les deux premiers sélectionnés sont
+  /// inclus, les suivants sont facturés au tarif de l'ingrédient.
+  /// 0 = pas de quota : la formule est fixe et suit `CompositionOption.includedByDefault`.
+  includedChoices Int       @default(0)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([compositionId])
+}
+
+/// Ingrédient proposé sur une composition.
+/// `includedByDefault` décrit la formule standard (compris dans le prix de la taille) ;
+/// les autres sont des suppléments facturés `extraPrice`. Volontairement sans lien vers
+/// Product : le tarif d'un ingrédient en plateau n'a rien à voir avec son prix au kilo.
+model CompositionOption {
+  id            String      @id @default(cuid())
+  compositionId String
+  composition   Composition @relation(fields: [compositionId], references: [id], onDelete: Cascade)
+
+  name          String      // "Mangue", "Fraise", "Gingembre"...
+  extraPrice    Float       @default(0)
+  includedByDefault Boolean @default(false)
+  /// Un ingrédient de la formule standard peut être retiré par le client, sauf s'il
+  /// définit la recette (la carotte d'un jus détox, par exemple).
+  isRemovable   Boolean     @default(true)
+  isActive      Boolean     @default(true)
+  order         Int         @default(0)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([compositionId])
 }
 
 model Order {
@@ -140,7 +195,7 @@ model OrderItem {
   compositionId String?
   composition   Composition? @relation(fields: [compositionId], references: [id], onDelete: SetNull)
 
-  quantity  Int
+  quantity  Float
   priceAtPurchase Float // Capture price at the time of order
   customData Json? // personnalisation composition (taille, ingrédients) figée à la commande
 }
@@ -167,7 +222,7 @@ model CartItem {
   compositionId String?
   composition   Composition? @relation(fields: [compositionId], references: [id], onDelete: SetNull)
 
-  quantity  Int      @default(1)
+  quantity  Float      @default(1)
   customData Json?
 
   createdAt DateTime @default(now())

@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ShoppingCart, Leaf, Truck, Shield, Loader2 } from "lucide-react"
 import { addToCart } from "@/app/actions/cart"
 import { toast } from "sonner"
+import QuantitySelector from "@/components/product/quantity-selector"
+import { minQuantity, formatQuantity, lineTotal } from "@/lib/units"
 
 interface Product {
   id: string
@@ -21,6 +22,8 @@ interface Product {
   category: string
   inStock: boolean
   organic: boolean
+  /** Stock réel : borne la quantité commandable. */
+  currentStock?: number
 }
 
 interface ProductBottomSheetProps {
@@ -30,24 +33,29 @@ interface ProductBottomSheetProps {
 }
 
 export default function ProductBottomSheet({ product, isOpen, onClose }: ProductBottomSheetProps) {
-  const [quantity, setQuantity] = useState("1")
-  const [packaging, setPackaging] = useState("standard")
+  const [quantity, setQuantity] = useState(() => minQuantity(product.unit))
   const [isAdding, setIsAdding] = useState(false)
+
+  // Le provider monte cette modale une seule fois et ne change que le produit en props :
+  // sans cette remise à zéro, la quantité d'un article au poids (0,2 kg) restait affichée
+  // sur l'article suivant vendu à la pièce, soit « 0,2 pièce ».
+  useEffect(() => {
+    setQuantity(minQuantity(product.unit))
+  }, [product.id, product.unit])
 
   const handleAddToCart = async () => {
     setIsAdding(true)
     try {
-      const result = await addToCart({ productId: product.id, quantity: parseInt(quantity) })
+      const result = await addToCart({ productId: product.id, quantity })
       if (result.success) {
-        toast.success(`${quantity} x ${product.name} ajouté au panier !`, {
-          style: { background: "#f97316", color: "#fff", border: "none" }
-        })
+        toast.success(`${formatQuantity(quantity, product.unit)} de ${product.name} ajouté au panier`)
         onClose()
       } else {
-        toast.error("Erreur lors de l'ajout au panier.")
+        toast.error(result.error || "Erreur lors de l'ajout au panier.")
       }
     } catch (error) {
       console.error(error)
+      toast.error("Une erreur est survenue")
     } finally {
       setIsAdding(false)
     }
@@ -101,33 +109,13 @@ export default function ProductBottomSheet({ product, isOpen, onClose }: Product
             {/* Quantité */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-2">Quantité</label>
-              <Select value={quantity} onValueChange={setQuantity}>
-                <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 10].map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} {product.unit}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Conditionnement */}
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-2">Conditionnement</label>
-              <Select value={packaging} onValueChange={setPackaging}>
-                <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 text-zinc-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="premium">Premium (+0.50€)</SelectItem>
-                  <SelectItem value="eco">Éco-responsable</SelectItem>
-                </SelectContent>
-              </Select>
+              <QuantitySelector
+                value={quantity}
+                onChange={setQuantity}
+                unit={product.unit}
+                max={product.currentStock}
+                disabled={!product.inStock}
+              />
             </div>
 
             <Separator className="bg-zinc-200" />
@@ -153,12 +141,9 @@ export default function ProductBottomSheet({ product, isOpen, onClose }: Product
         {/* Footer sticky */}
         <DrawerFooter className="border-t border-zinc-300 bg-[#e8e0d4]">
           <div className="flex items-center justify-between text-lg font-semibold text-zinc-900 mb-2">
-            <span>Total:</span>
+            <span>Total :</span>
             <span className="text-orange-500">
-              {(
-                product.price * Number.parseInt(quantity) +
-                (packaging === "premium" ? 0.5 * Number.parseInt(quantity) : 0)
-              ).toFixed(2)}€
+              {lineTotal(product.price, quantity).toFixed(2)}€
             </span>
           </div>
           <Button

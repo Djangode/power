@@ -9,7 +9,8 @@ import { Separator } from "@/components/ui/separator"
 import { ShoppingBag, Plus, Minus, Trash2, Loader2, X } from "lucide-react"
 import { getCartItems, updateCartItemQuantity, removeCartItem } from "@/app/actions/cart"
 import { getDeliveryConfig } from "@/app/actions/content"
-import { compositionUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { cartItemUnitPrice, deliveryFee as computeDeliveryFee } from "@/lib/pricing"
+import { describeSelection } from "@/lib/composition-pricing"
 
 interface CartDrawerProps {
   open: boolean
@@ -101,9 +102,8 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
         customData: null,
       }
     } else if (item.composition) {
-      const customPrice = item.customData
-        ? compositionUnitPrice(item.composition.basePrice, item.customData)
-        : item.composition.basePrice
+      // Même calcul que le serveur : prix du format retenu plus les suppléments.
+      const customPrice = cartItemUnitPrice(item)
       return {
         id: item.id,
         name: item.composition.name,
