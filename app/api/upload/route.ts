@@ -3,7 +3,9 @@ import { auth } from "@/auth"
 import { put } from "@vercel/blob"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
-import sharp from "sharp"
+
+// Node est requis : sharp et l'écriture disque ne fonctionnent pas sur le runtime Edge.
+export const runtime = "nodejs"
 
 const ALLOWED_MIME_TYPES = [
     "image/jpeg",
@@ -78,6 +80,11 @@ export async function POST(req: Request) {
         const buffer = Buffer.from(bytes)
 
         // Compression avec sharp → WebP, max 800px, qualité 80
+        // Chargement à l'exécution : importé au niveau module, sharp est évalué pendant la
+        // collecte des données de page au build, où ses binaires natifs ne sont pas encore
+        // en place sur l'infrastructure de déploiement.
+        const { default: sharp } = await import("sharp")
+
         const compressed = await sharp(buffer)
             .resize(800, 800, { fit: "inside", withoutEnlargement: true })
             .webp({ quality: 80 })
