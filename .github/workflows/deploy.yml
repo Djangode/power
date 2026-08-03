@@ -3,18 +3,20 @@ name: Deploy Production
 # Déploiement continu, conditionné aux tests.
 #
 # Ne se déclenche QUE si le workflow CI (typecheck + tests) s'est terminé avec succès
-# sur `main`. Une CI rouge → aucun déploiement. C'est le garde-fou qui manquait : avant,
-# le déploiement se faisait à la main, sans garantie que les tests passaient.
+# sur `main`. Une CI rouge → aucun déploiement.
 #
-# PRÉREQUIS (une seule fois, côté GitHub) :
+# Tant que les secrets Vercel ne sont pas configurés, le job se termine proprement (vert)
+# en signalant qu'il a été ignoré — il ne vire pas au rouge. Dès que les secrets sont là,
+# il déploie automatiquement.
+#
+# CONFIGURATION (une seule fois, côté GitHub) :
 #   Settings → Secrets and variables → Actions → New repository secret
 #     VERCEL_TOKEN      → jeton personnel Vercel (vercel.com/account/tokens)
-#     VERCEL_ORG_ID     → lu dans .vercel/project.json (orgId)
-#     VERCEL_PROJECT_ID → lu dans .vercel/project.json (projectId)
+#     VERCEL_ORG_ID     → team_wgo3HLSSL6v9splnZ6SDsuPp
+#     VERCEL_PROJECT_ID → prj_6KW8xtp0Nwi2YHZIYY0jCGVwO5cn
 #
-# ET : désactiver l'auto-déploiement Git de Vercel (Project → Settings → Git →
-# « Ignored Build Step » ou déconnexion du déploiement auto), sinon Vercel déploierait
-# en double, sans attendre les tests.
+# ET : désactiver l'auto-déploiement Git de Vercel (Project → Settings → Git) pour
+# éviter un déploiement en double qui n'attendrait pas les tests.
 
 on:
   workflow_run:
@@ -25,20 +27,36 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Ne déploie que si la CI a réussi.
+    # Ne rien faire si la CI a échoué.
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      - name: Vérifier la configuration Vercel
+        id: check
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Secrets Vercel absents — déploiement ignoré. Ajoutez VERCEL_TOKEN pour activer la CD."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
         with:
           node-version: 22
 
       - name: Installer Vercel CLI
+        if: steps.check.outputs.configured == 'true'
         run: npm install --global vercel@latest
 
       - name: Récupérer la configuration Vercel
+        if: steps.check.outputs.configured == 'true'
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -46,6 +64,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build de production
+        if: steps.check.outputs.configured == 'true'
         run: vercel build --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -53,6 +72,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Déployer
+        if: steps.check.outputs.configured == 'true'
         run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

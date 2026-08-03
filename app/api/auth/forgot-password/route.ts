@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
         // Send reset email
         const resetUrl = `${APP_URL}/mot-de-passe-oublie?token=${token}&uid=${user.id}`
 
+        // Envoi best-effort : une panne Resend ne doit pas renvoyer 500. Sinon la réponse
+        // diffère selon que le compte existe (500) ou non (200), ce qui rouvre la fuite
+        // d'énumération que le « success » systématique était censé fermer.
+        try {
         const resend = new Resend(process.env.RESEND_API_KEY)
         await resend.emails.send({
             from: "Power Primeur <noreply@powerprimeur.com>",
@@ -73,6 +77,9 @@ export async function POST(req: NextRequest) {
                 </html>
             `,
         })
+        } catch (emailError) {
+            console.error("⚠️ Email de réinitialisation échoué:", emailError)
+        }
 
         return NextResponse.json({ success: true })
     } catch (error) {
