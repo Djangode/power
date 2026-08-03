@@ -172,7 +172,9 @@ export async function POST(req: NextRequest) {
         const isDelivery = method === "livraison"
         const cfg = await getDeliveryConfig()
         const deliveryFee = computeDeliveryFee(subtotal, isDelivery ? "livraison" : "retrait", cfg)
-        const total = subtotal - promoDiscount + deliveryFee
+        // Arrondi au centime : les sommes de flottants dérivent (6.6000000000000005) et
+        // finiraient telles quelles en base.
+        const total = Math.round((subtotal - promoDiscount + deliveryFee) * 100) / 100
 
         // Adresse utilisateur si pas fournie
         let finalAddress = deliveryAddress
@@ -198,7 +200,11 @@ export async function POST(req: NextRequest) {
         // Numéro de facture séquentiel (obligation de numérotation continue, cf. lib/invoice)
         const invoiceNumber = await nextInvoiceNumber()
 
-        // Création de la commande → auto-confirmée ("validated")
+        // Création de la commande → auto-confirmée ("validated").
+        // Les lignes sont créées SÉPARÉMENT, jamais en write imbriqué : un create Prisma
+        // avec relation imbriquée ouvre une transaction implicite, que l'adaptateur Neon
+        // HTTP ne supporte pas (« Transactions are not supported in HTTP mode »). Ce write
+        // imbriqué faisait échouer toute commande en 500 — aucune n'a pu aboutir jusqu'ici.
         const order = await prisma.order.create({
             data: {
                 userId: session.user.id,
@@ -217,11 +223,15 @@ export async function POST(req: NextRequest) {
                 discount: promoDiscount,
                 invoiceNumber,
                 carrier: paymentMethod === "cash" ? "Espèces" : "CB à la livraison",
-                items: {
-                    create: orderItemsData,
-                },
             },
         })
+
+        // Une par une, jamais createMany : Prisma enveloppe un createMany multi-lignes dans
+        // une transaction, elle aussi refusée par l'adaptateur Neon HTTP. Un insert unitaire
+        // est la seule écriture qui passe (même contrainte que la fusion de panier).
+        for (const item of orderItemsData) {
+            await prisma.orderItem.create({ data: { ...item, orderId: order.id } })
+        }
 
         // Décrémenter le stock
         const orderItems = await prisma.orderItem.findMany({

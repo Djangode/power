@@ -18,6 +18,7 @@ const mockPromoFindUnique = vi.fn()
 const mockPromoUpdate = vi.fn()
 const mockOrderCreate = vi.fn()
 const mockOrderItemFindMany = vi.fn()
+const mockOrderItemCreate = vi.fn()
 const mockProductFindMany = vi.fn()
 const mockProductUpdate = vi.fn()
 const mockUserFindUnique = vi.fn()
@@ -40,7 +41,10 @@ vi.mock('@/lib/db', () => ({
       update: (...a: any[]) => mockPromoUpdate(...a),
     },
     order: { create: (...a: any[]) => mockOrderCreate(...a) },
-    orderItem: { findMany: (...a: any[]) => mockOrderItemFindMany(...a) },
+    orderItem: {
+      findMany: (...a: any[]) => mockOrderItemFindMany(...a),
+      create: (...a: any[]) => mockOrderItemCreate(...a),
+    },
     product: {
       findMany: (...a: any[]) => mockProductFindMany(...a),
       update: (...a: any[]) => mockProductUpdate(...a),
@@ -124,6 +128,7 @@ describe('POST /api/orders/place', () => {
       invoiceNumber: 'FAC-000001',
     })
     mockOrderItemFindMany.mockResolvedValue([])
+    mockOrderItemCreate.mockResolvedValue({ id: 'oi_new' })
     mockUserFindUnique.mockResolvedValue({
       id: 'u1', email: 'client@test.fr', firstName: 'Jean', lastName: 'Dupont',
       address: '5 rue des Lilas', city: 'Alfortville', postalCode: '94140',
@@ -200,6 +205,29 @@ describe('POST /api/orders/place', () => {
           where: { id: 'p1' },
           data: expect.objectContaining({ currentStock: 98 }),
         }),
+      )
+    })
+  })
+
+  // Régression critique trouvée au pentest : order.create avec items imbriqués (ou
+  // createMany multi-lignes) ouvre une transaction implicite, refusée par l'adaptateur
+  // Neon HTTP — toute commande partait en 500. Les lignes DOIVENT être créées une par une.
+  describe('création des lignes (contrainte Neon HTTP)', () => {
+    it('devrait creer chaque ligne via orderItem.create, jamais en write imbrique', async () => {
+      mockCartItemFindMany.mockResolvedValue([
+        { id: 'ci1', productId: 'p1', compositionId: null, quantity: 2, customData: null,
+          product: { id: 'p1', name: 'Tomates', price: 10, inStock: true, currentStock: 100 }, composition: null },
+        { id: 'ci2', productId: 'p2', compositionId: null, quantity: 1, customData: null,
+          product: { id: 'p2', name: 'Bananes', price: 3, inStock: true, currentStock: 100 }, composition: null },
+      ])
+
+      await POST(makeRequest())
+
+      // Deux lignes → deux create unitaires
+      expect(mockOrderItemCreate).toHaveBeenCalledTimes(2)
+      // Et surtout : jamais de create imbriqué dans order.create
+      expect(mockOrderCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.not.objectContaining({ items: expect.anything() }) }),
       )
     })
   })

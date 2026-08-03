@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
         // Calcul frais de livraison
         const isDelivery = deliveryMethod === "livraison"
         const deliveryFee = isDelivery ? (subtotal >= 30 ? 0 : 4.90) : 0
-        const total = subtotal - promoDiscount + deliveryFee
+        // Arrondi au centime : les sommes de flottants dérivent (6.6000000000000005) et
+        // finiraient telles quelles en base.
+        const total = Math.round((subtotal - promoDiscount + deliveryFee) * 100) / 100
 
         // Récupérer l'adresse utilisateur si pas fournie
         let finalAddress = deliveryAddress
@@ -152,11 +154,15 @@ export async function POST(req: NextRequest) {
                 pickupCode: deliveryMethod === "retrait" ? generatePickupCode() : null,
                 promoCode: validPromoCode,
                 discount: promoDiscount,
-                items: {
-                    create: orderItemsData
-                }
             }
         })
+
+        // Lignes créées une par une : les writes imbriqués et createMany multi-lignes
+        // ouvrent une transaction implicite, non supportée par l'adaptateur Neon HTTP
+        // (cf. /api/orders/place).
+        for (const item of orderItemsData) {
+            await prisma.orderItem.create({ data: { ...item, orderId: order.id } })
+        }
 
         // Préparer les items Stripe
         const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItems.map(item => {
