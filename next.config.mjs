@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@neondatabase/serverless', 'ws', '@prisma/adapter-neon'],
+  // `sharp` embarque des binaires natifs : empaqueté par le bundler, il fait échouer la
+  // collecte des données de /api/upload au build Vercel.
+  serverExternalPackages: ['@neondatabase/serverless', 'ws', '@prisma/adapter-neon', 'sharp'],
   images: {
     remotePatterns: [
       {
