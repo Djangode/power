@@ -2,19 +2,21 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaNeonHttp } from '@prisma/adapter-neon'
 import '@/lib/env'
 
-const databaseUrl = process.env.DATABASE_URL || ''
-
-// Nettoyage URL (channel_binding cause des problèmes)
-const cleanUrl = databaseUrl
-    .replace(/&channel_binding=[^&]*/g, '')
-    .replace(/\?channel_binding=[^&]*&?/, '?')
-    .replace(/\?$/, '')
-
 const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined
 }
 
+/** Nettoyage URL : channel_binding pose problème avec l'adaptateur Neon HTTP. */
+function cleanDatabaseUrl(raw: string): string {
+    return raw
+        .replace(/&channel_binding=[^&]*/g, '')
+        .replace(/\?channel_binding=[^&]*&?/, '?')
+        .replace(/\?$/, '')
+}
+
 function makePrisma(): PrismaClient {
+    const cleanUrl = cleanDatabaseUrl(process.env.DATABASE_URL || '')
+
     if (!cleanUrl || cleanUrl.includes('xxx') || cleanUrl.includes('placeholder')) {
         // En production, ce mode transformerait une base injoignable en site parfaitement
         // vide — catalogue sans produits, commandes introuvables — sans la moindre erreur
@@ -51,8 +53,24 @@ function makePrisma(): PrismaClient {
     return new PrismaClient({ adapter })
 }
 
-export const prisma = globalForPrisma.prisma ?? makePrisma()
-
-if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = prisma
+/**
+ * Construction paresseuse : le client n'est instancié qu'à la première utilisation, jamais
+ * à l'import. Sinon `next build` — qui importe toutes les routes pour collecter les données
+ * de page — déclencherait la construction (et le garde-fou production ci-dessus) alors
+ * qu'aucune base n'est nécessaire pour builder. Le build n'a pas besoin de DATABASE_URL ;
+ * le runtime, lui, l'a toujours.
+ */
+function getClient(): PrismaClient {
+    if (!globalForPrisma.prisma) {
+        globalForPrisma.prisma = makePrisma()
+    }
+    return globalForPrisma.prisma
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+    get(_target, prop) {
+        const client = getClient()
+        const value = (client as unknown as Record<string | symbol, unknown>)[prop]
+        return typeof value === 'function' ? value.bind(client) : value
+    },
+})
