@@ -93,6 +93,9 @@ const config: Config = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  // container-queries : tout le template admin (cartes de stats, grilles) est construit avec des
+  // container queries (@xl/main:grid-cols-2, @5xl/main:grid-cols-4…). Sans ce plugin, ces classes
+  // sont inertes en Tailwind v3 → les cartes retombent en une seule colonne (empilées).
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/container-queries")],
 };
 export default config;
