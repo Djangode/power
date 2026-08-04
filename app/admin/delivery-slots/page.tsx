@@ -18,6 +18,7 @@ interface DeliverySlot {
   date: string
   startTime: string
   endTime: string
+  type: string
   maxOrders: number
   currentOrders: number
   isActive: boolean
@@ -36,6 +37,7 @@ export default function DeliverySlotsPage() {
   const [formStartTime, setFormStartTime] = useState("09:00")
   const [formEndTime, setFormEndTime] = useState("12:00")
   const [formMaxOrders, setFormMaxOrders] = useState("10")
+  const [formType, setFormType] = useState<"livraison" | "retrait">("livraison")
 
   const fetchSlots = async () => {
     try {
@@ -58,6 +60,7 @@ export default function DeliverySlotsPage() {
     setFormStartTime("09:00")
     setFormEndTime("12:00")
     setFormMaxOrders("10")
+    setFormType("livraison")
     setEditingId(null)
     setShowForm(false)
   }
@@ -69,6 +72,7 @@ export default function DeliverySlotsPage() {
       date: formDate,
       startTime: formStartTime,
       endTime: formEndTime,
+      type: formType,
       maxOrders: parseInt(formMaxOrders),
     }
 
@@ -127,6 +131,7 @@ export default function DeliverySlotsPage() {
     setFormStartTime(slot.startTime)
     setFormEndTime(slot.endTime)
     setFormMaxOrders(slot.maxOrders.toString())
+    setFormType(slot.type === "retrait" ? "retrait" : "livraison")
     setShowForm(true)
   }
 
@@ -247,6 +252,17 @@ export default function DeliverySlotsPage() {
                       min="1"
                     />
                   </div>
+                  <div>
+                    <Label>Type</Label>
+                    <select
+                      value={formType}
+                      onChange={(e) => setFormType(e.target.value as "livraison" | "retrait")}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="livraison">Livraison</option>
+                      <option value="retrait">Retrait (Click &amp; Collect)</option>
+                    </select>
+                  </div>
                   <div className="md:col-span-4 flex gap-2">
                     <Button type="submit">{editingId ? "Modifier" : "Créer"}</Button>
                     <Button type="button" variant="outline" onClick={resetForm}>Annuler</Button>
@@ -272,6 +288,7 @@ export default function DeliverySlotsPage() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Créneau</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Commandes</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -292,8 +309,13 @@ export default function DeliverySlotsPage() {
                           </TableCell>
                           <TableCell>{slot.startTime} — {slot.endTime}</TableCell>
                           <TableCell>
+                            <Badge variant="outline">
+                              {slot.type === "retrait" ? "Retrait" : "Livraison"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             <span className={isFull ? "text-destructive font-bold" : ""}>
-                              {slot.currentOrders}/{slot.maxOrders}
+                              {slot.type === "retrait" ? "—" : `${slot.currentOrders}/${slot.maxOrders}`}
                             </span>
                           </TableCell>
                           <TableCell>

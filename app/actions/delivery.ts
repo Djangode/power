@@ -19,18 +19,23 @@ export async function getAvailableDeliverySlots(
             return { success: false, data: [] }
         }
 
-        const slots = await prisma.deliverySlot.findMany({
-            where: {
-                date: {
-                    gte: start,
-                    lte: end,
-                },
-                isActive: true,
-            },
-            orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
-        })
+        const range = { date: { gte: start, lte: end }, isActive: true }
+        const order = [{ date: 'asc' as const }, { startTime: 'asc' as const }]
 
-        // Livraison : seulement les créneaux non complets. Retrait : tous les créneaux actifs.
+        let slots
+        if (mode === "retrait") {
+            // Créneaux de RETRAIT dédiés en priorité.
+            slots = await prisma.deliverySlot.findMany({ where: { ...range, type: "retrait" }, orderBy: order })
+            // À défaut, on réutilise les créneaux de livraison pour l'horaire (sans consommer
+            // leur capacité) : évite de bloquer le retrait les jours sans créneau de retrait.
+            if (!slots.length) {
+                slots = await prisma.deliverySlot.findMany({ where: { ...range, type: "livraison" }, orderBy: order })
+            }
+        } else {
+            slots = await prisma.deliverySlot.findMany({ where: { ...range, type: "livraison" }, orderBy: order })
+        }
+
+        // Livraison : seulement les créneaux non complets. Retrait : tous (pas de quota).
         const available = mode === "retrait" ? slots : slots.filter(slot => slot.currentOrders < slot.maxOrders)
 
         return {

@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
 
         const body = await req.json().catch(() => ({}))
         const weeksAhead = body.weeksAhead || WEEKS_AHEAD
+        const slotType = body.type === "retrait" ? "retrait" : "livraison"
 
         // Aujourd'hui à minuit UTC — les créneaux sont stockés à minuit UTC, de façon
         // indépendante du fuseau du serveur (cohérent avec la requête côté client).
@@ -50,11 +51,13 @@ export async function POST(req: NextRequest) {
                 const startTime = `${String(hour).padStart(2, "0")}:00`
                 const endTime = `${String(hour + 1).padStart(2, "0")}:00`
 
-                // Vérifier si le créneau existe déjà (éviter les doublons)
+                // Vérifier si le créneau existe déjà (éviter les doublons) — par type, pour
+                // pouvoir générer des créneaux de retrait sans être bloqué par la livraison.
                 const existing = await prisma.deliverySlot.findFirst({
                     where: {
                         date,
                         startTime,
+                        type: slotType,
                     }
                 })
 
@@ -68,6 +71,7 @@ export async function POST(req: NextRequest) {
                         date,
                         startTime,
                         endTime,
+                        type: slotType,
                         maxOrders: MAX_ORDERS_PER_SLOT,
                         isActive: true,
                     }

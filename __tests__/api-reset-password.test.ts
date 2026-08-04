@@ -29,6 +29,11 @@ vi.mock('bcryptjs', () => ({
 
 import { POST } from '@/app/api/auth/reset-password/route'
 import { NextRequest } from 'next/server'
+import crypto from 'crypto'
+
+// Le token est stocké HACHÉ en base ; le lien de l'email porte le token en clair. On reproduit
+// ici le hachage pour préparer la valeur stockée attendue par la route.
+const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex')
 
 function makeRequest(body: any) {
   return new NextRequest('http://localhost/api/auth/reset-password', {
@@ -67,7 +72,7 @@ describe('POST /api/auth/reset-password', () => {
     mockSiteSettingFindUnique.mockResolvedValueOnce({
       key: 'reset_user-1',
       value: JSON.stringify({
-        token: 'valid-token',
+        token: hashToken('valid-token'),
         expiry: new Date(Date.now() + 3600000).toISOString(),
       }),
     })
@@ -101,7 +106,7 @@ describe('POST /api/auth/reset-password', () => {
     mockSiteSettingFindUnique.mockResolvedValueOnce({
       key: 'reset_user-1',
       value: JSON.stringify({
-        token: 'valid-token',
+        token: hashToken('valid-token'),
         expiry: new Date('2020-01-01').toISOString(),
       }),
     })
@@ -115,7 +120,7 @@ describe('POST /api/auth/reset-password', () => {
     mockSiteSettingFindUnique.mockResolvedValueOnce({
       key: 'reset_user-1',
       value: JSON.stringify({
-        token: 'valid-token',
+        token: hashToken('valid-token'),
         expiry: new Date(Date.now() + 3600000).toISOString(),
       }),
     })
@@ -130,7 +135,7 @@ describe('POST /api/auth/reset-password', () => {
     expect(mockUserUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'user-1' },
-        data: { password: 'new_hashed_password' },
+        data: expect.objectContaining({ password: 'new_hashed_password' }),
       })
     )
     expect(mockSiteSettingDelete).toHaveBeenCalled()

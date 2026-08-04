@@ -37,15 +37,19 @@ export async function POST(req: NextRequest) {
         const token = crypto.randomBytes(32).toString("hex")
         const expiry = new Date(Date.now() + 3600000) // 1 hour
 
-        // Store token in SiteSetting (simple approach without schema change)
+        // On stocke le HASH du token, jamais le token en clair : un dump/backup de base ne
+        // suffit plus à prendre le contrôle d'un compte. Le lien de l'email, lui, porte le
+        // token en clair ; on le re-hache à la réinitialisation pour comparer.
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+
         await prisma.siteSetting.upsert({
             where: { key: `reset_${user.id}` },
             create: {
                 key: `reset_${user.id}`,
-                value: JSON.stringify({ token, expiry: expiry.toISOString() }),
+                value: JSON.stringify({ token: tokenHash, expiry: expiry.toISOString() }),
             },
             update: {
-                value: JSON.stringify({ token, expiry: expiry.toISOString() }),
+                value: JSON.stringify({ token: tokenHash, expiry: expiry.toISOString() }),
             },
         })
 

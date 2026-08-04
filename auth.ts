@@ -132,8 +132,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     try {
                         const dbUser = await prisma.user.findUnique({ where: { id: token.sub } })
                         token.checkedAt = Date.now()
-                        if (!dbUser || !dbUser.isActive) {
-                            token.role = undefined // compte supprimé/désactivé → plus de rôle privilégié
+                        const pwdChangedAfterToken =
+                            dbUser?.passwordChangedAt != null &&
+                            typeof token.iat === "number" &&
+                            dbUser.passwordChangedAt.getTime() > token.iat * 1000
+                        if (!dbUser || !dbUser.isActive || pwdChangedAfterToken) {
+                            // Compte supprimé/désactivé, ou mot de passe changé depuis l'émission
+                            // de ce jeton → session révoquée.
+                            token.role = undefined
                             token.disabled = true
                         } else {
                             token.role = dbUser.role

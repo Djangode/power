@@ -28,6 +28,9 @@ model User {
   stripeCustomerId String?
   role      String   @default("user") // "user", "admin", "cashier", "preparation", "delivery"
   isActive  Boolean  @default(true)
+  /// Date du dernier changement de mot de passe. Toute session (JWT) émise AVANT cette date
+  /// est invalidée à la revalidation — un reset coupe donc les sessions déjà ouvertes.
+  passwordChangedAt DateTime?
   salary    Float?
   salaryType String?
   hoursPerWeek Int?
@@ -343,11 +346,17 @@ model DeliverySlot {
   date        DateTime
   startTime   String   // e.g "09:00"
   endTime     String   // e.g "12:00"
+  /// "livraison" ou "retrait" : pools distincts. Un retrait n'occupe pas la capacité de
+  /// livraison ; des créneaux de retrait dédiés permettent le Click & Collect les jours
+  /// sans livraison.
+  type        String   @default("livraison")
   maxOrders   Int      @default(10)
   currentOrders Int    @default(0)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([date, startTime])
+  // Le type entre dans la clé : un créneau livraison et un créneau retrait peuvent coexister
+  // au même horaire.
+  @@unique([date, startTime, type])
 }

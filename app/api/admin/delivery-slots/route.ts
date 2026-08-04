@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json()
-        const { date, startTime, endTime, maxOrders, isActive } = body
+        const { date, startTime, endTime, maxOrders, isActive, type } = body
 
         if (!date || !startTime || !endTime) {
             return NextResponse.json({ error: "date, startTime, endTime requis" }, { status: 400 })
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
                 date: new Date(date),
                 startTime,
                 endTime,
+                type: type === "retrait" ? "retrait" : "livraison",
                 maxOrders: maxOrders || 10,
                 isActive: isActive !== false,
             }
@@ -89,7 +90,7 @@ export async function PUT(req: NextRequest) {
         }
 
         const body = await req.json()
-        const { id, date, startTime, endTime, maxOrders, isActive } = body
+        const { id, date, startTime, endTime, maxOrders, isActive, type } = body
 
         if (!id) {
             return NextResponse.json({ error: "id requis" }, { status: 400 })
@@ -101,6 +102,7 @@ export async function PUT(req: NextRequest) {
                 ...(date && { date: new Date(date) }),
                 ...(startTime && { startTime }),
                 ...(endTime && { endTime }),
+                ...(type && { type: type === "retrait" ? "retrait" : "livraison" }),
                 ...(maxOrders !== undefined && { maxOrders }),
                 ...(isActive !== undefined && { isActive }),
             }

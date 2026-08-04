@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 
 export async function POST(req: NextRequest) {
     try {
@@ -31,7 +32,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 400 })
         }
 
-        if (data.token !== token) {
+        // On compare le HASH du token reçu à celui stocké (le clair n'est jamais en base).
+        const incomingHash = crypto.createHash("sha256").update(token).digest("hex")
+        if (data.token !== incomingHash) {
             return NextResponse.json({ error: "Lien invalide" }, { status: 400 })
         }
 
@@ -43,9 +46,11 @@ export async function POST(req: NextRequest) {
 
         // Update password
         const hashedPassword = await bcrypt.hash(password, 12)
+        // passwordChangedAt : coupe les sessions (JWT) émises avant ce reset — un attaquant
+        // qui aurait une session ouverte la perd à la prochaine revalidation.
         await prisma.user.update({
             where: { id: uid },
-            data: { password: hashedPassword }
+            data: { password: hashedPassword, passwordChangedAt: new Date() }
         })
 
         // Clean up token
