@@ -366,7 +366,9 @@ export default function ProductsPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
+          {/* @container/main : contexte requis par les container queries de SectionCards
+              (@5xl/main:grid-cols-4). Sans lui, les cartes de stats retombent en 1 colonne. */}
+          <div className="@container/main flex flex-1 flex-col gap-4 p-4 lg:p-6">
 
             {/* Header */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
