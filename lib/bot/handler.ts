@@ -18,6 +18,9 @@ import {
     findProducts,
     setStock,
     setPrice,
+    restock,
+    destroyStock,
+    getPurchaseTable,
     getStockOverview,
     getRuptures,
     getTodaysOrders,
@@ -47,7 +50,11 @@ const HELP = [
     "/stock fraises — un produit",
     "/stock fraises 12 — changer le stock",
     "/rupture — tout ce qui manque",
-    "/rupture fraises — mettre en rupture",
+    "/perte tomates 5 — détruire du stock (perte)",
+    "",
+    "ACHATS",
+    "/reappro tomates 30 1,20 2,40 — réappro (qté, achat, vente)",
+    "/achats — liste de ce qu'il faut racheter",
     "",
     "PRIX",
     "/prix fraises — voir le prix",
@@ -55,6 +62,7 @@ const HELP = [
     "",
     "COMMANDES",
     "/commandes — à préparer aujourd'hui",
+    "/commande A1B2C3 — l'état d'une commande",
     "/preparer A1B2C3 — en préparation",
     "/remis A1B2C3 — remise / livrée",
     "",
@@ -121,8 +129,18 @@ export async function handleMessage(rawText: string): Promise<Reply> {
             return stockCommand(rest)
         case "/rupture":
             return ruptureCommand(rest)
+        case "/perte":
+            return perteCommand(rest)
+        case "/reappro":
+        case "/réappro":
+            return reapproCommand(rest)
+        case "/achats":
+            return achatsCommand()
         case "/prix":
             return prixCommand(rest)
+
+        case "/commande":
+            return commandeCommand(rest)
 
         default:
             return { text: `Commande inconnue : ${cmd}\n/aide pour la liste.` }
@@ -222,6 +240,61 @@ async function prixCommand(rest: string): Promise<Reply> {
     return { text: matches.map((p) => format.productDetail(p)).join("\n") }
 }
 
+// ── Réapprovisionnement / perte / achats ─────────────────────────────────────
+
+async function reapproCommand(rest: string): Promise<Reply> {
+    const parts = rest.trim().split(/\s+/)
+    const example = "Ex : /reappro tomates 30 1,20 2,40  (produit, quantité, prix d'achat, prix de vente)"
+    if (parts.length < 4) return { text: `Il manque des infos.\n${example}` }
+
+    const vente = parseNumber(parts.pop()!)
+    const achat = parseNumber(parts.pop()!)
+    const qty = parseNumber(parts.pop()!)
+    const query = parts.join(" ")
+    if (qty === null || achat === null || vente === null || qty <= 0 || achat < 0 || vente < 0) {
+        return { text: `Quantité et prix doivent être des nombres.\n${example}` }
+    }
+
+    const matches = await findProducts(query)
+    if (!matches.length) return { text: `Aucun produit « ${query} ».` }
+    if (matches.length > 1) return preciser(matches)
+    const p = matches[0]
+
+    const marginPct = achat > 0 ? Math.round(((vente - achat) / achat) * 1000) / 10 : null
+    const lines = [
+        "Réappro ?",
+        `${p.name} : ${p.currentStock} → ${p.currentStock + qty} ${p.unit}  (+${qty})`,
+        `Achat ${format.euros(achat)} · Vente ${format.euros(vente)}/${p.unit}` +
+            (marginPct !== null ? ` · marge ${marginPct} %` : ""),
+    ]
+    return { text: lines.join("\n"), buttons: confirm(`rs:${p.id}:${qty}:${achat}:${vente}`) }
+}
+
+async function perteCommand(rest: string): Promise<Reply> {
+    const parsed = splitProductAndValue(rest)
+    if (!parsed || parsed.value <= 0) return { text: "Format : /perte tomates 5  (produit, quantité)" }
+    const matches = await findProducts(parsed.query)
+    if (!matches.length) return { text: `Aucun produit « ${parsed.query} ».` }
+    if (matches.length > 1) return preciser(matches)
+    const p = matches[0]
+    const after = Math.max(0, p.currentStock - parsed.value)
+    return {
+        text: `Détruire du stock ? (enregistré en perte)\n${p.name} : ${p.currentStock} → ${after} ${p.unit}  (−${parsed.value})`,
+        buttons: confirm(`pt:${p.id}:${parsed.value}`),
+    }
+}
+
+async function achatsCommand(): Promise<Reply> {
+    const lines = await getPurchaseTable()
+    if (!lines.length) return { text: "Rien à racheter, tous les stocks sont au-dessus du seuil. ✅" }
+    const body = lines.map((l) => {
+        const fourn = l.supplier ? ` · ${l.supplier}` : ""
+        const prix = l.purchasePrice != null ? ` · achat ${format.euros(l.purchasePrice)}` : ""
+        return `• ${l.name} : ${l.toBuy} ${l.unit}${fourn}${prix}`
+    })
+    return { text: `🛒 À COMMANDER (${lines.length})\n${body.join("\n")}` }
+}
+
 // ── Commandes ────────────────────────────────────────────────────────────────
 
 async function commandesDuJour(): Promise<Reply> {
@@ -234,6 +307,14 @@ async function commandesDuJour(): Promise<Reply> {
 async function chiffreDuJour(): Promise<Reply> {
     const { count, total } = await getDayRevenue()
     return { text: `💶 Aujourd'hui : ${format.euros(total)} sur ${count} commande(s).` }
+}
+
+async function commandeCommand(ref: string): Promise<Reply> {
+    if (!ref) return { text: "Précise le code. Ex : /commande A1B2C3" }
+    const o = await findOrder(ref)
+    if (!o) return { text: `Commande introuvable : « ${ref} ».` }
+    const phone = o.phone ? `\n📞 ${o.phone}` : ""
+    return { text: `${format.order(o)}${phone}` }
 }
 
 async function demanderStatut(ref: string, status: string, verb: string): Promise<Reply> {
@@ -260,21 +341,34 @@ function preciser(matches: ProductMatch[]): Reply {
 export async function handleCallback(data: string): Promise<Reply> {
     if (data === "x") return { text: "Annulé. Rien n'a été modifié." }
 
-    const [action, id, value] = data.split(":")
+    const parts = data.split(":")
+    const [action, id] = parts
 
     switch (action) {
         case "st": {
-            const p = await setStock(id, Number(value))
+            const p = await setStock(id, Number(parts[2]))
             if (!p) return { text: "Produit introuvable, rien modifié." }
             return { text: `✅ ${format.productDetail(p)}` }
         }
         case "pr": {
-            const p = await setPrice(id, Number(value))
+            const p = await setPrice(id, Number(parts[2]))
             if (!p) return { text: "Produit introuvable ou prix invalide, rien modifié." }
             return { text: `✅ ${format.productDetail(p)}` }
         }
+        case "rs": {
+            // rs:<id>:<qté>:<achat>:<vente>
+            const r = await restock(id, Number(parts[2]), Number(parts[3]), Number(parts[4]))
+            if (!r) return { text: "Produit introuvable, rien modifié." }
+            const marge = r.marginPct !== null ? ` · marge ${r.marginPct} %` : ""
+            return { text: `✅ Réappro faite (+${r.added}).\n${format.productDetail(r.product)}${marge}` }
+        }
+        case "pt": {
+            const p = await destroyStock(id, Number(parts[2]))
+            if (!p) return { text: "Produit introuvable, rien modifié." }
+            return { text: `✅ Perte enregistrée.\n${format.productDetail(p)}` }
+        }
         case "os": {
-            const o = await setOrderStatus(id, value)
+            const o = await setOrderStatus(id, parts[2])
             if (!o) return { text: "Commande introuvable, rien modifié." }
             return { text: `✅ ${o.number} — ${o.statusLabel}.` }
         }

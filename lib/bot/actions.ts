@@ -85,6 +85,8 @@ export type ProductMatch = {
     currentStock: number
     inStock: boolean
     minimumStock: number
+    purchasePrice: number | null
+    supplier: string | null
 }
 
 /** Champs chargés pour tout produit manipulé par le bot. */
@@ -96,7 +98,11 @@ const PRODUCT_SELECT = {
     currentStock: true,
     inStock: true,
     minimumStock: true,
+    purchasePrice: true,
+    supplier: true,
 } as const
+
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 /**
  * Recherche de produits par nom (insensible à la casse, correspondance partielle).
@@ -151,6 +157,92 @@ export async function getRuptures(): Promise<ProductMatch[]> {
         select: PRODUCT_SELECT,
         orderBy: { name: "asc" },
     })
+}
+
+export type RestockResult = { product: ProductMatch; added: number; marginPct: number | null }
+
+/**
+ * Réapprovisionnement : AJOUTE au stock (n'écrase pas) et fixe prix d'achat + prix de vente.
+ * La marge (%) est recalculée comme dans l'admin : marge = (vente − achat) / achat × 100.
+ * (Le fournisseur et la date d'appro suivront quand la base aura les champs correspondants.)
+ */
+export async function restock(
+    id: string,
+    addQty: number,
+    purchasePrice: number,
+    salePrice: number,
+): Promise<RestockResult | null> {
+    const p = await getProduct(id)
+    if (!p) return null
+    const newStock = Math.max(0, p.currentStock + addQty)
+    const marginPct = purchasePrice > 0 ? Math.round(((salePrice - purchasePrice) / purchasePrice) * 1000) / 10 : null
+
+    const data: {
+        currentStock: number
+        inStock: boolean
+        purchasePrice: number
+        price: number
+        margin?: number
+    } = {
+        currentStock: newStock,
+        inStock: newStock > 0,
+        purchasePrice: round2(purchasePrice),
+        price: round2(salePrice),
+    }
+    if (marginPct !== null) data.margin = marginPct
+
+    await prisma.product.update({ where: { id }, data })
+    const updated = await getProduct(id)
+    return updated ? { product: updated, added: addQty, marginPct } : null
+}
+
+/**
+ * Destruction de stock (invendu, abîmé) : décrémente le stock ET enregistre la perte en
+ * dépense (type « loss »), au coût d'achat si connu — pour que la compta reflète la casse.
+ */
+export async function destroyStock(id: string, qty: number): Promise<ProductMatch | null> {
+    const p = await getProduct(id)
+    if (!p) return null
+    const newStock = Math.max(0, p.currentStock - qty)
+
+    await prisma.product.update({
+        where: { id },
+        data: { currentStock: newStock, inStock: newStock > 0 },
+    })
+    await prisma.expense.create({
+        data: {
+            type: "loss",
+            description: `Destruction stock : ${qty} ${p.unit} — ${p.name}`,
+            amount: round2((p.purchasePrice ?? 0) * qty),
+            date: new Date(),
+            category: "perte",
+        },
+    })
+    return getProduct(id)
+}
+
+export type PurchaseLine = {
+    name: string
+    toBuy: number
+    unit: string
+    supplier: string | null
+    purchasePrice: number | null
+}
+
+/**
+ * Tableau d'achat : ce qu'il faut racheter (produits sous le seuil), avec la quantité à
+ * commander pour repasser confortablement au-dessus (cible = 2× le seuil), le fournisseur
+ * et le dernier prix d'achat connu.
+ */
+export async function getPurchaseTable(): Promise<PurchaseLine[]> {
+    const { toRestock } = await getStockOverview()
+    return toRestock.map((p) => ({
+        name: p.name,
+        toBuy: Math.max(0, Math.ceil(p.minimumStock * 2 - p.currentStock)),
+        unit: p.unit,
+        supplier: p.supplier,
+        purchasePrice: p.purchasePrice,
+    }))
 }
 
 /** Fixe le stock d'un produit. `inStock` suit automatiquement (rupture si 0). */
