@@ -23,13 +23,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 400 })
         }
 
-        const data = JSON.parse(setting.value)
+        // Valeur corrompue → « lien invalide », pas un 500 générique qui inquiète l'utilisateur.
+        let data: { token?: string; expiry?: string }
+        try {
+            data = JSON.parse(setting.value)
+        } catch {
+            return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 400 })
+        }
 
         if (data.token !== token) {
             return NextResponse.json({ error: "Lien invalide" }, { status: 400 })
         }
 
-        if (new Date(data.expiry) < new Date()) {
+        if (!data.expiry || new Date(data.expiry) < new Date()) {
             // Clean up expired token
             await prisma.siteSetting.delete({ where: { key: `reset_${uid}` } })
             return NextResponse.json({ error: "Ce lien a expiré. Veuillez refaire une demande." }, { status: 400 })

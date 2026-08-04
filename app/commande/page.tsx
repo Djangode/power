@@ -158,8 +158,10 @@ export default function CommandePage() {
     }
     // Le téléphone est le seul moyen de joindre le client en cas d'imprévu (rupture,
     // absence à la livraison, commande prête plus tôt) : exigé dans les deux modes.
-    if (!phone.trim()) {
-      toast.error("Veuillez renseigner un numéro de téléphone")
+    // Même règle que le serveur (≥ 10 chiffres) : sinon le bouton s'active, le client
+    // clique, et le serveur rejette en 400 — rejet tardif et déroutant.
+    if (phone.replace(/[\s.\-]/g, "").length < 10) {
+      toast.error("Numéro de téléphone invalide (au moins 10 chiffres)")
       return
     }
     if (deliveryMethod === "livraison") {
@@ -305,7 +307,7 @@ export default function CommandePage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Code postal</label>
+                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Code postal *</label>
                           <Input
                             value={postalCode}
                             onChange={(e) => setPostalCode(e.target.value)}
@@ -314,7 +316,7 @@ export default function CommandePage() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Ville</label>
+                          <label className="text-xs text-zinc-400 font-medium mb-1 block">Ville *</label>
                           <Input
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
@@ -323,19 +325,30 @@ export default function CommandePage() {
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="text-xs text-zinc-400 font-medium mb-1 block">Téléphone</label>
-                        <Input
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="0690 XX XX XX"
-                          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
-                        />
-                      </div>
                     </CardContent>
                   </Card>
                 </div>
               )}
+
+              {/* Téléphone — requis dans les DEUX modes (livraison ET retrait). Auparavant caché
+                  en retrait, ce qui bloquait toute commande Click & Collect (bouton grisé sans
+                  explication). */}
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
+                  <User className="h-4 w-4" /> Contact
+                </h2>
+                <Card className="glassmorphism bg-zinc-900/40 border-white/5 rounded-2xl">
+                  <CardContent className="p-5">
+                    <label className="text-xs text-zinc-400 font-medium mb-1 block">Téléphone *</label>
+                    <Input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="0690 XX XX XX"
+                      className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 rounded-xl"
+                    />
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Date et créneau : exigés dans les deux modes.
                   En retrait, sans horaire choisi le commerçant ne sait pas quand préparer
@@ -347,6 +360,7 @@ export default function CommandePage() {
                 <DeliveryCalendar
                   onSelectDelivery={setSelectedDelivery}
                   selectedDelivery={selectedDelivery}
+                  mode={deliveryMethod === "retrait" ? "retrait" : "livraison"}
                 />
               </div>
 
@@ -515,7 +529,7 @@ export default function CommandePage() {
                     disabled={
                       isCheckingOut ||
                       !selectedDelivery ||
-                      !phone.trim() ||
+                      phone.replace(/[\s.\-]/g, "").length < 10 ||
                       (deliveryMethod === "livraison" && (!address.trim() || !postalCode.trim() || !city.trim()))
                     }
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-6 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.3)] text-base disabled:opacity-50"

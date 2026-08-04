@@ -20,9 +20,12 @@ interface DeliverySlot {
 interface DeliveryCalendarProps {
   onSelectDelivery: (delivery: { date: string; time: string; dateISO: string; slotId?: string }) => void
   selectedDelivery: { date: string; time: string } | null
+  /** Mode de réception : adapte les libellés (Livraison vs Retrait / Click & Collect). */
+  mode?: "livraison" | "retrait"
 }
 
-export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }: DeliveryCalendarProps) {
+export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery, mode = "livraison" }: DeliveryCalendarProps) {
+  const isRetrait = mode === "retrait"
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [selectedTime, setSelectedTime] = useState<string>("")
   const [slots, setSlots] = useState<DeliverySlot[]>([])
@@ -88,7 +91,7 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
       <CardHeader className="border-b border-white/5 pb-8">
         <CardTitle className="flex items-center gap-3 text-2xl font-black uppercase italic tracking-tighter">
           <CalendarIcon className="h-6 w-6 text-orange-500" />
-          Planifier la <span className="text-orange-500">Livraison</span>
+          {isRetrait ? "Planifier le " : "Planifier la "}<span className="text-orange-500">{isRetrait ? "Retrait" : "Livraison"}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-10 pt-8">
@@ -115,7 +118,7 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
             ) : selectedDate ? (
               displaySlots.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center border border-dashed border-white/5 rounded-3xl text-zinc-600 font-bold italic text-center px-6 py-8">
-                  Aucun créneau de livraison disponible pour cette date. Veuillez en choisir une autre.
+                  Aucun créneau de {isRetrait ? "retrait" : "livraison"} disponible pour cette date. Veuillez en choisir une autre.
                 </div>
               ) : (
               <div className="grid grid-cols-1 gap-3 flex-1">
@@ -158,7 +161,7 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery }:
             <div className="flex items-center gap-4 text-orange-500">
               <CheckCircle2 className="w-6 h-6 shrink-0" />
               <p className="font-black uppercase italic text-sm tracking-tight leading-none pt-1">
-                Livraison programmée le {selectedDelivery.date} - {selectedDelivery.time}
+                {isRetrait ? "Retrait programmé" : "Livraison programmée"} le {selectedDelivery.date} - {selectedDelivery.time}
               </p>
             </div>
           </div>

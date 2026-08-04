@@ -1,4 +1,5 @@
 import { Resend } from "resend"
+import { formatQuantity } from "@/lib/units"
 
 const FROM_EMAIL = "Power Primeur <noreply@powerprimeur.com>"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -107,7 +108,17 @@ export async function sendNewOrderToCompany(
     deliverySlot?: string | null
     address?: { line?: string | null; city?: string | null; postalCode?: string | null } | null
     pickupCode?: string | null
-    items: { name: string; quantity: number; price: number }[]
+    items: {
+      name: string
+      quantity: number
+      price: number
+      unit?: string | null
+      selection?: {
+        sizeName: string | null
+        included: string[]
+        extras: { name: string; price: number }[]
+      } | null
+    }[]
   },
 ) {
   try {
@@ -157,15 +168,29 @@ export async function sendNewOrderToCompany(
       : ""
 
     const itemsRows = order.items
-      .map(
-        (item) => `
+      .map((item) => {
+        // Quantité dans l'unité de vente (« 300 g » plutôt que « x0.3 »), comme le Telegram.
+        const qtyLabel = item.unit ? formatQuantity(item.quantity, item.unit) : `x${item.quantity}`
+        // Détail d'une composition : c'est la fiche de préparation. Sans elle, un plateau ou
+        // un smoothie arrive sans recette si le Telegram est en panne / non configuré.
+        const sel = item.selection
+        const line = (t: string) =>
+          `<div style="font-size: 11px; color: #888; padding-left: 12px;">↳ ${t}</div>`
+        const selHtml = sel
+          ? [
+              sel.sizeName ? line(`Format : ${sel.sizeName}`) : "",
+              sel.included.length ? line(`Compris : ${sel.included.join(", ")}`) : "",
+              ...sel.extras.map((e) => line(`Supplément : ${e.name} (+${e.price.toFixed(2)}€)`)),
+            ].join("")
+          : ""
+        return `
       <tr>
-        <td style="padding: 8px 0; color: #ccc; font-size: 13px; border-bottom: 1px solid #222;">${item.name}</td>
-        <td style="padding: 8px 0; color: #999; font-size: 13px; text-align: center; border-bottom: 1px solid #222;">x${item.quantity}</td>
+        <td style="padding: 8px 0; color: #ccc; font-size: 13px; border-bottom: 1px solid #222;">${item.name}${selHtml}</td>
+        <td style="padding: 8px 0; color: #999; font-size: 13px; text-align: center; border-bottom: 1px solid #222;">${qtyLabel}</td>
         <td style="padding: 8px 0; color: #fff; font-size: 13px; text-align: right; border-bottom: 1px solid #222;">${(item.price * item.quantity).toFixed(2)}€</td>
       </tr>
-    `,
-      )
+    `
+      })
       .join("")
 
     const content = `

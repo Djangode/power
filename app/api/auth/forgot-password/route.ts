@@ -7,11 +7,15 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
 export async function POST(req: NextRequest) {
     try {
-        const { email } = await req.json()
+        const { email: rawEmail } = await req.json()
 
-        if (!email) {
+        if (!rawEmail || typeof rawEmail !== "string") {
             return NextResponse.json({ error: "Email requis" }, { status: 400 })
         }
+
+        // Même normalisation qu'à l'inscription/connexion. Sans elle, une saisie « Jean@X.fr »
+        // ne retrouve pas le compte stocké « jean@x.fr » → aucun mail envoyé, en silence.
+        const email = rawEmail.trim().toLowerCase()
 
         const user = await prisma.user.findUnique({ where: { email } })
 
@@ -46,7 +50,7 @@ export async function POST(req: NextRequest) {
         const resend = new Resend(process.env.RESEND_API_KEY)
         await resend.emails.send({
             from: "Power Primeur <noreply@powerprimeur.com>",
-            to: email,
+            to: user.email,
             subject: "Réinitialisation de votre mot de passe",
             html: `
                 <!DOCTYPE html>
