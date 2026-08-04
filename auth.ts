@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { rateLimit } from "@/lib/rate-limit"
 
 declare module "next-auth" {
     interface User {
@@ -13,6 +14,8 @@ declare module "next-auth" {
         user: {
             id: string
             role?: string
+            /** Compte désactivé : le middleware le traite comme déconnecté. */
+            disabled?: boolean
         } & DefaultSession["user"]
     }
 }
@@ -36,6 +39,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 if (parsedCredentials.success) {
                     const { email, password } = parsedCredentials.data
+
+                    // Anti-force brute : borne les tentatives par adresse email.
+                    const rl = await rateLimit(`login:${email.trim().toLowerCase()}`, 10, 15 * 60_000)
+                    if (!rl.ok) return null
 
                     const user = await prisma.user.findUnique({
                         // Même normalisation qu'à l'inscription, sinon une casse différente
@@ -102,24 +109,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
             return true
         },
-        async jwt({ token, user, account }) {
-            // Premier login : on va chercher le vrai ID et ROLE en DB
+        async jwt({ token, user }) {
+            // Premier login : ID + rôle depuis la base.
             if (user && user.email) {
                 const dbUser = await prisma.user.findUnique({ where: { email: user.email } })
                 if (dbUser) {
                     token.sub = dbUser.id
                     token.role = dbUser.role
+                    token.disabled = !dbUser.isActive
+                    token.checkedAt = Date.now()
                 }
+                return token
             }
-            // Persister le role dans le token si absent (fallback unique)
-            if (!token.role && token.sub) {
-                try {
-                    const dbUser = await prisma.user.findUnique({ where: { id: token.sub } })
-                    if (dbUser) {
-                        token.role = dbUser.role
+
+            // Revalidation périodique (au plus une fois par minute) : propage aux sessions
+            // DÉJÀ ouvertes une désactivation ou un changement de rôle. Sans ça, un admin
+            // rétrogradé ou désactivé garderait son accès jusqu'à expiration du jeton.
+            if (token.sub) {
+                const REVALIDATE_MS = 60_000
+                const last = typeof token.checkedAt === "number" ? token.checkedAt : 0
+                if (Date.now() - last > REVALIDATE_MS) {
+                    try {
+                        const dbUser = await prisma.user.findUnique({ where: { id: token.sub } })
+                        token.checkedAt = Date.now()
+                        if (!dbUser || !dbUser.isActive) {
+                            token.role = undefined // compte supprimé/désactivé → plus de rôle privilégié
+                            token.disabled = true
+                        } else {
+                            token.role = dbUser.role
+                            token.disabled = false
+                        }
+                    } catch (error) {
+                        console.error("Revalidation JWT échouée:", error)
                     }
-                } catch (error) {
-                    console.error("Erreur récupération rôle JWT:", error)
                 }
             }
             return token

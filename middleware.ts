@@ -10,6 +10,18 @@ export default auth((req) => {
   const { pathname } = req.nextUrl
   const isLoggedIn = !!req.auth
   const userRole = req.auth?.user?.role
+  const isDisabled = req.auth?.user?.disabled === true
+
+  // ============================================
+  // Compte désactivé : accès révoqué (le jeton peut encore exister). On laisse la page de
+  // connexion accessible pour permettre de se reconnecter avec un autre compte.
+  // ============================================
+  if (isDisabled && pathname !== "/connexion") {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Compte désactivé" }, { status: 403 })
+    }
+    return NextResponse.redirect(new URL("/connexion", req.url))
+  }
 
   // ============================================
   // Protection des routes admin (pages + API)
@@ -44,7 +56,7 @@ export default auth((req) => {
   // ============================================
   // Redirection si déjà connecté (page login)
   // ============================================
-  if (pathname === "/connexion" && isLoggedIn) {
+  if (pathname === "/connexion" && isLoggedIn && !isDisabled) {
     return NextResponse.redirect(new URL("/", req.url))
   }
 

@@ -329,6 +329,15 @@ model Expense {
   updatedAt   DateTime @updatedAt
 }
 
+/// Limiteur de débit adossé à la base (pas de service externe) : une ligne par clé
+/// (« login:email », « forgot-ip:1.2.3.4 »…), remise à zéro à chaque nouvelle fenêtre.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  windowEnd DateTime
+  updatedAt DateTime @updatedAt
+}
+
 model DeliverySlot {
   id          String   @id @default(cuid())
   date        DateTime

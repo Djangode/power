@@ -2,7 +2,13 @@
 
 import { prisma } from "@/lib/db"
 
-export async function getAvailableDeliverySlots(startDate: string, endDate: string) {
+export async function getAvailableDeliverySlots(
+    startDate: string,
+    endDate: string,
+    // En retrait (Click & Collect), le client vient au magasin : il n'occupe pas une place de
+    // livraison. On ne filtre donc pas sur la capacité et on propose tous les créneaux actifs.
+    mode: "livraison" | "retrait" = "livraison",
+) {
     try {
         // Fenêtre couvrant toute(s) la(les) journée(s) demandée(s).
         // Les créneaux sont stockés à minuit UTC ; on requête [début 00:00 UTC, fin 23:59:59 UTC]
@@ -24,7 +30,8 @@ export async function getAvailableDeliverySlots(startDate: string, endDate: stri
             orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
         })
 
-        const available = slots.filter(slot => slot.currentOrders < slot.maxOrders)
+        // Livraison : seulement les créneaux non complets. Retrait : tous les créneaux actifs.
+        const available = mode === "retrait" ? slots : slots.filter(slot => slot.currentOrders < slot.maxOrders)
 
         return {
             success: true,
@@ -33,7 +40,9 @@ export async function getAvailableDeliverySlots(startDate: string, endDate: stri
                 date: slot.date.toISOString().split('T')[0],
                 startTime: slot.startTime,
                 endTime: slot.endTime,
-                remainingSlots: slot.maxOrders - slot.currentOrders,
+                // En retrait, la capacité n'a pas de sens : on renvoie une valeur positive pour
+                // que le créneau soit toujours proposé.
+                remainingSlots: mode === "retrait" ? 1 : slot.maxOrders - slot.currentOrders,
             }))
         }
     } catch (error) {

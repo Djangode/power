@@ -31,6 +31,10 @@ export const authConfig = {
             if (token.role && session.user) {
                 session.user.role = token.role as string
             }
+            // Exposé au middleware Edge : un compte désactivé est traité comme déconnecté.
+            if (session.user) {
+                session.user.disabled = (token as { disabled?: boolean }).disabled === true
+            }
             return session
         },
         async jwt({ token, user }) {

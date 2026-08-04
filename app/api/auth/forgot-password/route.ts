@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import crypto from "crypto"
 import { Resend } from "resend"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
@@ -16,6 +17,14 @@ export async function POST(req: NextRequest) {
         // Même normalisation qu'à l'inscription/connexion. Sans elle, une saisie « Jean@X.fr »
         // ne retrouve pas le compte stocké « jean@x.fr » → aucun mail envoyé, en silence.
         const email = rawEmail.trim().toLowerCase()
+
+        // Anti-bombardement d'emails : par IP et par adresse ciblée. Réponse générique (comme
+        // le « success » systématique) pour ne pas rouvrir la fuite d'énumération.
+        const ipRl = await rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000)
+        const emailRl = await rateLimit(`forgot:${email}`, 3, 60 * 60_000)
+        if (!ipRl.ok || !emailRl.ok) {
+            return NextResponse.json({ error: "Trop de demandes. Réessayez plus tard." }, { status: 429 })
+        }
 
         const user = await prisma.user.findUnique({ where: { email } })
 

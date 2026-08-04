@@ -35,13 +35,14 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery, m
     if (selectedDate) {
       loadSlots(selectedDate)
     }
-  }, [selectedDate])
+    // `mode` inclus : basculer Livraison ⇄ Retrait recharge les créneaux (capacité vs non).
+  }, [selectedDate, mode])
 
   const loadSlots = async (date: Date) => {
     setLoadingSlots(true)
     try {
       const dateStr = formatLocalDate(date)
-      const res = await getAvailableDeliverySlots(dateStr, dateStr)
+      const res = await getAvailableDeliverySlots(dateStr, dateStr, mode)
       if (res.success && res.data.length > 0) {
         setSlots(res.data)
       } else {
@@ -137,7 +138,8 @@ export default function DeliveryCalendar({ onSelectDelivery, selectedDelivery, m
                       <Clock className={`w-4 h-4 ${selectedTime === slot.time ? "text-white" : "text-orange-500"}`} />
                       <span>{slot.time}</span>
                     </div>
-                    {!slot.available ? (
+                    {/* La capacité ne concerne que la livraison ; en retrait, pas de quota. */}
+                    {isRetrait ? null : !slot.available ? (
                       <Badge variant="secondary" className="bg-zinc-800 text-zinc-600 border-0 text-[8px] font-black uppercase tracking-widest">
                         Complet
                       </Badge>

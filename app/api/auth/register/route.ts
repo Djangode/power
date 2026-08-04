@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { sendWelcomeEmail } from "@/lib/email"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 const registerSchema = z.object({
     // L'email est normalisé dès la validation : sans cela « Jean@x.fr » et « jean@x.fr »
@@ -30,6 +31,16 @@ export async function POST(req: Request) {
         }
 
         const { email, password, firstName, lastName } = parsed.data
+
+        // Anti-abus : borne les créations de comptes par IP (chaque inscription déclenche
+        // aussi un email de bienvenue — protège du bombardement d'emails).
+        const rl = await rateLimit(`register:${clientIp(req)}`, 5, 60_000)
+        if (!rl.ok) {
+            return NextResponse.json(
+                { error: "Trop de tentatives. Réessayez dans une minute." },
+                { status: 429 },
+            )
+        }
 
         const existingUser = await prisma.user.findUnique({
             where: { email }

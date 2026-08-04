@@ -106,7 +106,10 @@ export async function POST(req: NextRequest) {
             if (!slot || !slot.isActive) {
                 return NextResponse.json({ error: "Le créneau de livraison choisi n'est plus disponible." }, { status: 409 })
             }
-            if (slot.currentOrders >= slot.maxOrders) {
+            // La capacité (maxOrders) ne s'applique qu'à la LIVRAISON : un retrait n'occupe pas
+            // de place de livraison. Sans ce garde, chaque Click & Collect mangeait une place
+            // de livraison et se voyait refuser sur un créneau « complet » côté livraison.
+            if (method === "livraison" && slot.currentOrders >= slot.maxOrders) {
                 return NextResponse.json({ error: "Ce créneau de livraison est complet. Veuillez en choisir un autre." }, { status: 409 })
             }
         }
@@ -264,8 +267,8 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Réserver le créneau de livraison (incrémente currentOrders)
-        if (deliverySlotId) {
+        // Réserver le créneau : uniquement en LIVRAISON (le retrait ne consomme pas de capacité).
+        if (deliverySlotId && method === "livraison") {
             await prisma.deliverySlot.updateMany({
                 where: { id: deliverySlotId },
                 data: { currentOrders: { increment: 1 } },
