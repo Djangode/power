@@ -18,6 +18,8 @@ import {
     findProducts,
     setStock,
     setPrice,
+    setPromo,
+    clearPromo,
     restock,
     destroyStock,
     getPurchaseTable,
@@ -56,9 +58,11 @@ const HELP = [
     "/reappro tomates 30 1,20 2,40 — réappro (qté, achat, vente)",
     "/achats — liste de ce qu'il faut racheter",
     "",
-    "PRIX",
+    "PRIX & PROMO",
     "/prix fraises — voir le prix",
     "/prix fraises 3,90 — changer le prix",
+    "/promo fraises 2,00 — mettre en promo",
+    "/promo fraises off — retirer la promo",
     "",
     "COMMANDES",
     "/commandes — à préparer aujourd'hui",
@@ -138,6 +142,8 @@ export async function handleMessage(rawText: string): Promise<Reply> {
             return achatsCommand()
         case "/prix":
             return prixCommand(rest)
+        case "/promo":
+            return promoCommand(rest)
 
         case "/commande":
             return commandeCommand(rest)
@@ -238,6 +244,41 @@ async function prixCommand(rest: string): Promise<Reply> {
     const matches = await findProducts(rest)
     if (!matches.length) return { text: `Aucun produit « ${rest} ».` }
     return { text: matches.map((p) => format.productDetail(p)).join("\n") }
+}
+
+async function promoCommand(rest: string): Promise<Reply> {
+    if (!rest) return { text: "Ex : /promo fraises 2,00  (ou  /promo fraises off)" }
+    const parts = rest.trim().split(/\s+/)
+    const last = parts[parts.length - 1].toLowerCase()
+    const isOff = ["off", "stop", "fin", "retirer", "retire"].includes(last)
+
+    if (isOff) {
+        const query = parts.slice(0, -1).join(" ")
+        if (!query) return { text: "Quel produit ? Ex : /promo fraises off" }
+        const matches = await findProducts(query)
+        if (!matches.length) return { text: `Aucun produit « ${query} ».` }
+        if (matches.length > 1) return preciser(matches)
+        const p = matches[0]
+        if (p.promoPrice == null) return { text: `${p.name} n'est pas en promo.` }
+        return {
+            text: `Retirer la promo ?\n${p.name} : retour à ${format.euros(p.price)}/${p.unit}`,
+            buttons: confirm(`mc:${p.id}`),
+        }
+    }
+
+    const parsed = splitProductAndValue(rest)
+    if (!parsed || parsed.value < 0) return { text: "Ex : /promo fraises 2,00  (ou  /promo fraises off)" }
+    const matches = await findProducts(parsed.query)
+    if (!matches.length) return { text: `Aucun produit « ${parsed.query} ».` }
+    if (matches.length > 1) return preciser(matches)
+    const p = matches[0]
+    const pct = p.price > 0 ? Math.round((1 - parsed.value / p.price) * 100) : 0
+    return {
+        text:
+            `Mettre en promo ?\n${p.name} : ${format.euros(p.price)} → ${format.euros(parsed.value)}/${p.unit}` +
+            (pct > 0 ? `  (−${pct} %)` : ""),
+        buttons: confirm(`mp:${p.id}:${parsed.value}`),
+    }
 }
 
 // ── Réapprovisionnement / perte / achats ─────────────────────────────────────
@@ -354,6 +395,16 @@ export async function handleCallback(data: string): Promise<Reply> {
             const p = await setPrice(id, Number(parts[2]))
             if (!p) return { text: "Produit introuvable ou prix invalide, rien modifié." }
             return { text: `✅ ${format.productDetail(p)}` }
+        }
+        case "mp": {
+            const p = await setPromo(id, Number(parts[2]))
+            if (!p) return { text: "Produit introuvable ou prix invalide, rien modifié." }
+            return { text: `✅ En promo.\n${format.productDetail(p)}` }
+        }
+        case "mc": {
+            const p = await clearPromo(id)
+            if (!p) return { text: "Produit introuvable, rien modifié." }
+            return { text: `✅ Promo retirée.\n${format.productDetail(p)}` }
         }
         case "rs": {
             // rs:<id>:<qté>:<achat>:<vente>

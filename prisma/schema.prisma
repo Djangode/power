@@ -78,6 +78,11 @@ model Product {
   margin      Float?
   currentStock Float      @default(0)
   minimumStock Float      @default(10)
+  /// Prix promotionnel : quand il est défini, c'est lui le prix de vente effectif ;
+  /// `price` devient l'ancien prix, affiché barré. null = pas de promo.
+  promoPrice   Float?
+  /// Dernière date de réapprovisionnement (posée par le bot lors d'un /reappro).
+  lastRestockedAt DateTime?
 
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id])

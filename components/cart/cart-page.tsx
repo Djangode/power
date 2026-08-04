@@ -85,11 +85,12 @@ export default function CartPage() {
       return {
         id: item.id,
         name: item.product.name,
-        price: item.product.price,
+        price: item.product.promoPrice ?? item.product.price,
+        oldPrice: item.product.promoPrice != null ? item.product.price : null,
         quantity: item.quantity,
         unit: item.product.unit,
         image: item.product.image || '/placeholder.svg',
-        total: item.product.price * item.quantity,
+        total: (item.product.promoPrice ?? item.product.price) * item.quantity,
         stock: item.product.currentStock ?? (item.product.inStock ? 99 : 0)
       }
     } else if (item.composition) {

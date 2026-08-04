@@ -16,6 +16,7 @@ interface Product {
   id: string
   name: string
   price: number
+  promoPrice?: number | null
   unit: string
   image: string
   description: string
@@ -100,7 +101,8 @@ export default function ProductBottomSheet({ product, isOpen, onClose }: Product
             <p className="text-sm text-zinc-500">{product.description}</p>
 
             <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold text-orange-500">{product.price.toFixed(2)}€</span>
+              {product.promoPrice != null && <span className="text-lg font-semibold text-zinc-400 line-through">{product.price.toFixed(2)}€</span>}
+              <span className="text-2xl font-bold text-orange-500">{(product.promoPrice ?? product.price).toFixed(2)}€</span>
               <span className="text-zinc-400 text-sm">/{product.unit}</span>
             </div>
 
@@ -143,7 +145,7 @@ export default function ProductBottomSheet({ product, isOpen, onClose }: Product
           <div className="flex items-center justify-between text-lg font-semibold text-zinc-900 mb-2">
             <span>Total :</span>
             <span className="text-orange-500">
-              {lineTotal(product.price, quantity).toFixed(2)}€
+              {lineTotal(product.promoPrice ?? product.price, quantity).toFixed(2)}€
             </span>
           </div>
           <Button

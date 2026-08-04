@@ -58,7 +58,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                                 {product.name}
                             </h1>
                             <div className="flex items-baseline gap-6 mb-10">
-                                <span className="text-5xl font-black text-white italic">{product.price.toFixed(2)}€</span>
+                                {product.promoPrice != null && <span className="text-3xl font-black text-zinc-500 italic line-through">{product.price.toFixed(2)}€</span>}
+                                <span className="text-5xl font-black text-white italic">{(product.promoPrice ?? product.price).toFixed(2)}€</span>
                                 <span className="text-2xl text-zinc-600 font-black uppercase italic opacity-50 tracking-tighter">/ {product.unit}</span>
                             </div>
                             <p className="text-zinc-500 text-xl font-medium italic leading-relaxed mb-12 max-w-xl">

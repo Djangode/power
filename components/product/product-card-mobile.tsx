@@ -10,6 +10,7 @@ interface Product {
   id: string
   name: string
   price: number
+  promoPrice?: number | null
   unit: string
   image: string
   category: string
@@ -104,7 +105,8 @@ export default function ProductCardMobile({ product, onViewDetails }: { product:
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-bold text-white truncate">{product.name}</h3>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-orange-500 font-black text-sm">{product.price.toFixed(2)}€</span>
+          {product.promoPrice != null && <span className="text-zinc-500 line-through text-xs">{product.price.toFixed(2)}€</span>}
+          <span className="text-orange-500 font-black text-sm">{(product.promoPrice ?? product.price).toFixed(2)}€</span>
           <span className="text-zinc-600 text-[10px] uppercase">/ {product.unit}</span>
         </div>
       </div>

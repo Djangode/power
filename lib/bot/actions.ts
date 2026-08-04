@@ -63,6 +63,11 @@ function qty(n: number, unit: string): string {
     return `${v} ${unit}`
 }
 
+/** Date courte en français, fuseau Paris (« 4 août »). */
+function dateShort(d: Date): string {
+    return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: TZ }).format(d)
+}
+
 /** Libellé lisible d'un statut de commande. */
 const STATUS_LABEL: Record<string, string> = {
     pending: "en attente",
@@ -87,6 +92,8 @@ export type ProductMatch = {
     minimumStock: number
     purchasePrice: number | null
     supplier: string | null
+    promoPrice: number | null
+    lastRestockedAt: Date | null
 }
 
 /** Champs chargés pour tout produit manipulé par le bot. */
@@ -100,6 +107,8 @@ const PRODUCT_SELECT = {
     minimumStock: true,
     purchasePrice: true,
     supplier: true,
+    promoPrice: true,
+    lastRestockedAt: true,
 } as const
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -182,12 +191,14 @@ export async function restock(
         inStock: boolean
         purchasePrice: number
         price: number
+        lastRestockedAt: Date
         margin?: number
     } = {
         currentStock: newStock,
         inStock: newStock > 0,
         purchasePrice: round2(purchasePrice),
         price: round2(salePrice),
+        lastRestockedAt: new Date(),
     }
     if (marginPct !== null) data.margin = marginPct
 
@@ -262,6 +273,19 @@ export async function setPrice(id: string, value: number): Promise<ProductMatch 
         where: { id },
         data: { price: Math.round(value * 100) / 100 },
     })
+    return getProduct(id)
+}
+
+/** Met un produit en promo : `promoPrice` devient le prix effectif, `price` s'affiche barré. */
+export async function setPromo(id: string, promoPrice: number): Promise<ProductMatch | null> {
+    if (!Number.isFinite(promoPrice) || promoPrice < 0) return null
+    await prisma.product.update({ where: { id }, data: { promoPrice: round2(promoPrice) } })
+    return getProduct(id)
+}
+
+/** Retire la promo (retour au prix normal). */
+export async function clearPromo(id: string): Promise<ProductMatch | null> {
+    await prisma.product.update({ where: { id }, data: { promoPrice: null } })
     return getProduct(id)
 }
 
@@ -423,11 +447,17 @@ export const format = {
         return `${p.name} — ${qty(p.currentStock, p.unit)}`
     },
 
-    /** Vue détaillée d'un produit (stock + prix), pour une réponse ciblée. */
+    /** Vue détaillée d'un produit (stock + prix + promo + dernier appro), pour une réponse ciblée. */
     productDetail(p: ProductMatch): string {
         const stock = p.currentStock <= 0 ? "rupture" : qty(p.currentStock, p.unit)
         const dot = p.currentStock <= 0 ? "🔴 " : p.currentStock <= p.minimumStock ? "🟠 " : ""
-        return `${dot}${p.name} — ${stock} — ${euros(p.price)}/${p.unit}`
+        const prix =
+            p.promoPrice != null
+                ? `🏷️ ${euros(p.promoPrice)} (promo, au lieu de ${euros(p.price)})`
+                : euros(p.price)
+        let line = `${dot}${p.name} — ${stock} — ${prix}/${p.unit}`
+        if (p.lastRestockedAt) line += `\n   dernier appro : ${dateShort(p.lastRestockedAt)}`
+        return line
     },
 
     order(o: OrderSummary): string {

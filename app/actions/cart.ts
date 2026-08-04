@@ -152,7 +152,7 @@ export async function getCartItems() {
             where: { cartId },
             include: {
                 product: {
-                    select: { id: true, name: true, price: true, image: true, unit: true, inStock: true, currentStock: true }
+                    select: { id: true, name: true, price: true, promoPrice: true, image: true, unit: true, inStock: true, currentStock: true }
                 },
                 composition: {
                     // Formats et ingrédients inclus : le panier doit afficher le même prix

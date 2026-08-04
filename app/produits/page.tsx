@@ -72,7 +72,7 @@ export default async function ProductsPage() {
                                         </div>
                                     )}
                                     <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm font-bold border border-white/10">
-                                        {product.price.toFixed(2)}€ / {product.unit}
+                                        {product.promoPrice != null && <span className="line-through text-zinc-400 mr-2">{product.price.toFixed(2)}€</span>}{(product.promoPrice ?? product.price).toFixed(2)}€ / {product.unit}
                                     </div>
                                 </div>
 

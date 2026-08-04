@@ -13,6 +13,7 @@ interface Product {
   id: string
   name: string
   price: number
+  promoPrice?: number | null
   unit: string
   image: string
   description: string
@@ -131,7 +132,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
 
           <div className="absolute bottom-6 left-6 right-6">
             <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between">
-              <span className="text-2xl font-black text-white italic leading-none">{product.price.toFixed(2)}€ <span className="text-[10px] uppercase tracking-widest text-zinc-500">/ {product.unit}</span></span>
+              <span className="text-2xl font-black text-white italic leading-none">{product.promoPrice != null && <span className="text-base font-bold text-zinc-400 line-through mr-2">{product.price.toFixed(2)}€</span>}{(product.promoPrice ?? product.price).toFixed(2)}€ <span className="text-[10px] uppercase tracking-widest text-zinc-500">/ {product.unit}</span></span>
             </div>
           </div>
         </div>

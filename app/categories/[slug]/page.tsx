@@ -72,7 +72,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                                         </div>
                                     )}
                                     <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-xl text-white px-4 py-2 rounded-2xl text-xl font-black border border-white/10 italic">
-                                        {product.price.toFixed(2)}€ <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">/ {product.unit}</span>
+                                        {product.promoPrice != null && <span className="text-sm text-zinc-400 line-through mr-2">{product.price.toFixed(2)}€</span>}{(product.promoPrice ?? product.price).toFixed(2)}€ <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">/ {product.unit}</span>
                                     </div>
                                 </div>
 

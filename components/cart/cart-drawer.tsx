@@ -94,11 +94,12 @@ export default function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
       return {
         id: item.id,
         name: item.product.name,
-        price: item.product.price,
+        price: item.product.promoPrice ?? item.product.price,
+        oldPrice: item.product.promoPrice != null ? item.product.price : null,
         quantity: item.quantity,
         unit: item.product.unit,
         image: item.product.image || "/placeholder.svg",
-        total: item.product.price * item.quantity,
+        total: (item.product.promoPrice ?? item.product.price) * item.quantity,
         customData: null,
       }
     } else if (item.composition) {

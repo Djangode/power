@@ -13,6 +13,7 @@ interface Product {
   id: string
   name: string
   price: number
+  promoPrice?: number | null
   unit: string
   image: string
   description: string

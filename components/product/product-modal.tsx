@@ -16,6 +16,7 @@ interface Product {
   id: string
   name: string
   price: number
+  promoPrice?: number | null
   unit: string
   image: string
   description: string
@@ -104,7 +105,8 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
               <p className="text-zinc-500 mb-4">{product.description}</p>
 
               <div className="flex items-center gap-4 mb-4">
-                <span className="text-3xl font-bold text-orange-500">{product.price.toFixed(2)}€</span>
+                {product.promoPrice != null && <span className="text-xl font-semibold text-zinc-400 line-through">{product.price.toFixed(2)}€</span>}
+                <span className="text-3xl font-bold text-orange-500">{(product.promoPrice ?? product.price).toFixed(2)}€</span>
                 <span className="text-zinc-400">/{product.unit}</span>
               </div>
             </div>
@@ -148,7 +150,7 @@ export default function ProductModal({ product, isOpen, onClose }: ProductModalP
               <div className="flex items-center justify-between text-lg font-semibold text-zinc-900">
                 <span>Total :</span>
                 <span className="text-orange-500">
-                  {lineTotal(product.price, quantity).toFixed(2)}€
+                  {lineTotal(product.promoPrice ?? product.price, quantity).toFixed(2)}€
                 </span>
               </div>
 

@@ -30,6 +30,7 @@ export default async function ProductSection() {
     id: product.id,
     name: product.name,
     price: product.price,
+    promoPrice: product.promoPrice,
     unit: product.unit,
     image: product.image || "/placeholder.svg?height=200&width=300",
     description: product.description || "Produit frais de qualité",

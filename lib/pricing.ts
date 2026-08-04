@@ -17,6 +17,18 @@ export function sizeMultiplier(size?: string | null): number {
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 /**
+ * Prix d'affichage d'un produit : { current, old }.
+ * En promo, `current` est le prix promo et `old` l'ancien prix (à barrer). Sans promo,
+ * `old` vaut null. Point unique pour un affichage cohérent partout (cartes, fiche, panier).
+ */
+export function displayPrice(p: { price: number; promoPrice?: number | null }): {
+  current: number
+  old: number | null
+} {
+  return p.promoPrice != null ? { current: p.promoPrice, old: p.price } : { current: p.price, old: null }
+}
+
+/**
  * Prix unitaire (HORS quantité) d'une composition personnalisée.
  * Calculé à partir de la taille et des ingrédients choisis, jamais d'un total figé.
  * @param ingredientPrices map optionnelle id -> prix actuel en base.
@@ -56,7 +68,10 @@ export function compositionUnitPrice(
  */
 export function cartItemUnitPrice(
   item: {
-    product?: { price: number } | null
+    // `promoPrice` (optionnel) : quand il est défini, c'est LUI le prix de vente effectif.
+    // Appliqué ici, au point unique de calcul, il vaut donc pour l'affichage panier ET la
+    // facturation serveur — impossible d'afficher une promo sans la facturer, ou l'inverse.
+    product?: { price: number; promoPrice?: number | null } | null
     composition?: {
       basePrice: number
       sizes?: { id: string; name: string; price: number; isDefault?: boolean }[]
@@ -66,7 +81,7 @@ export function cartItemUnitPrice(
   },
   ingredientPrices?: Map<string, number>,
 ): number {
-  if (item.product) return item.product.price
+  if (item.product) return item.product.promoPrice ?? item.product.price
   if (!item.composition) return 0
 
   const { basePrice, sizes = [], options = [] } = item.composition
