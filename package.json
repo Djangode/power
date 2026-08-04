@@ -16,7 +16,8 @@
     "images:apply": "node --env-file=.env scripts/apply-product-images.mjs",
     "postinstall": "prisma generate",
     "telegram:test": "node --env-file=.env scripts/test-telegram.mjs",
-    "telegram:link": "node --env-file=.env scripts/telegram-chat-id.mjs"
+    "telegram:link": "node --env-file=.env scripts/telegram-chat-id.mjs",
+    "telegram:webhook": "node --env-file=.env scripts/telegram-set-webhook.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
