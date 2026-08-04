@@ -5,15 +5,21 @@
  *   - handleMessage(text)      → un message texte du commerçant
  *   - handleCallback(data)     → un clic sur un bouton de confirmation
  *
- * Toute action qui MODIFIE la base (stock, prix, statut) passe d'abord par une confirmation :
- * le message propose des boutons, et l'écriture n'a lieu qu'au clic « Confirmer ». Les lectures
- * (commandes du jour, chiffre d'affaires) répondent directement.
+ * Ergonomie voulue par le commerçant (souvent chez le fournisseur, doit aller vite) :
+ *   - une commande seule = vue d'ensemble immédiate (comme /ca) ;
+ *   - une commande + un nom = réponse ciblée directe ;
+ *   - une commande + un nom + un nombre = modification (avec confirmation à bouton).
+ *
+ * Toute écriture (stock, prix, statut) passe d'abord par une confirmation : rien n'est
+ * appliqué tant que le commerçant n'a pas tapé « Confirmer ».
  */
 
 import {
     findProducts,
     setStock,
     setPrice,
+    getStockOverview,
+    getRuptures,
     getTodaysOrders,
     findOrder,
     setOrderStatus,
@@ -28,19 +34,31 @@ import type { InlineButton } from "@/lib/bot/telegram-io"
 export type Reply = { text: string; buttons?: InlineButton[][] }
 
 const CANCEL: InlineButton = { text: "❌ Annuler", data: "x" }
+const confirm = (data: string): InlineButton[][] => [[{ text: "✅ Confirmer", data }, CANCEL]]
+
+/** Au-delà de cette taille, on tronque la liste « le reste » (limite de longueur Telegram). */
+const REST_LIMIT = 60
 
 const HELP = [
-    "🤖 Power Man — gestion de la boutique",
+    "🤖 Power Man — gestion boutique",
     "",
-    "📋 /commandes — commandes à préparer aujourd'hui",
-    "✅ /preparer <code> — passer une commande en préparation",
-    "📦 /remis <code> — marquer une commande remise / livrée",
-    "🥕 /stock <produit> <nombre> — fixer le stock",
-    "🚫 /rupture <produit> — mettre en rupture",
-    "🏷️ /prix <produit> <montant> — changer le prix",
-    "💶 /ca — chiffre d'affaires du jour",
+    "STOCKS",
+    "/stock — tout, les bas d'abord",
+    "/stock fraises — un produit",
+    "/stock fraises 12 — changer le stock",
+    "/rupture — tout ce qui manque",
+    "/rupture fraises — mettre en rupture",
     "",
-    "Exemples : « /stock fraises 12 », « /prix tomates 3,90 », « /remis A1B2C3 »",
+    "PRIX",
+    "/prix fraises — voir le prix",
+    "/prix fraises 3,90 — changer le prix",
+    "",
+    "COMMANDES",
+    "/commandes — à préparer aujourd'hui",
+    "/preparer A1B2C3 — en préparation",
+    "/remis A1B2C3 — remise / livrée",
+    "",
+    "/ca — recette du jour",
 ].join("\n")
 
 /** Parse un nombre français ou anglais (« 4,50 » ou « 4.50 »). */
@@ -49,21 +67,13 @@ function parseNumber(raw: string): number | null {
     return Number.isFinite(n) ? n : null
 }
 
-/** Sépare une commande produit du type « fraises bio 12 » en (query="fraises bio", value=12). */
+/** « fraises bio 12 » → { query:"fraises bio", value:12 } ; renvoie null s'il n'y a pas de nombre final. */
 function splitProductAndValue(rest: string): { query: string; value: number } | null {
     const parts = rest.trim().split(/\s+/)
     if (parts.length < 2) return null
     const value = parseNumber(parts[parts.length - 1])
     if (value === null) return null
     return { query: parts.slice(0, -1).join(" "), value }
-}
-
-/** Quand plusieurs produits correspondent, on liste au lieu d'agir au hasard. */
-function ambiguous(matches: ProductMatch[]): Reply {
-    const lines = matches.map((p) => `• ${format.product(p)}`)
-    return {
-        text: `Plusieurs produits correspondent, précise :\n${lines.join("\n")}`,
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,8 +90,8 @@ export async function handleMessage(rawText: string): Promise<Reply> {
         if (!interpreted) {
             return {
                 text:
-                    "Je ne comprends pas encore les phrases libres (la connexion à l'IA arrive).\n" +
-                    "En attendant, utilise les commandes — tape /aide pour la liste.",
+                    "Je ne comprends pas encore les phrases libres (l'IA arrive).\n" +
+                    "En attendant : /aide pour les commandes.",
             }
         }
         text = interpreted.trim()
@@ -98,30 +108,121 @@ export async function handleMessage(rawText: string): Promise<Reply> {
 
         case "/commandes":
             return commandesDuJour()
-
         case "/ca":
             return chiffreDuJour()
 
         case "/preparer":
             return demanderStatut(rest, "processing", "passer en préparation")
-
         case "/remis":
         case "/livre":
             return demanderStatut(rest, "delivered", "marquer remise / livrée")
 
         case "/stock":
-            return demanderStock(rest)
-
+            return stockCommand(rest)
         case "/rupture":
-            return demanderRupture(rest)
-
+            return ruptureCommand(rest)
         case "/prix":
-            return demanderPrix(rest)
+            return prixCommand(rest)
 
         default:
-            return { text: `Commande inconnue : ${cmd}\nTape /aide pour la liste.` }
+            return { text: `Commande inconnue : ${cmd}\n/aide pour la liste.` }
     }
 }
+
+// ── Stocks ───────────────────────────────────────────────────────────────────
+
+async function stockCommand(rest: string): Promise<Reply> {
+    // /stock seul → tableau de bord.
+    if (!rest) return stockDashboard()
+
+    // /stock fraises 12 → modification.
+    const set = splitProductAndValue(rest)
+    if (set) return confirmerStock(set.query, set.value)
+
+    // /stock fraises → réponse directe.
+    const matches = await findProducts(rest)
+    if (!matches.length) return { text: `Aucun produit « ${rest} ».` }
+    return { text: matches.map((p) => format.productDetail(p)).join("\n") }
+}
+
+async function stockDashboard(): Promise<Reply> {
+    const { toRestock, rest } = await getStockOverview()
+    const lines: string[] = ["📦 STOCKS"]
+
+    if (toRestock.length) {
+        lines.push("", "À réapprovisionner :")
+        for (const p of toRestock) lines.push(format.stockLine(p))
+    } else {
+        lines.push("", "✅ Rien sous le seuil.")
+    }
+
+    if (rest.length) {
+        const shown = rest.slice(0, REST_LIMIT)
+        lines.push("", "Le reste :")
+        for (const p of shown) lines.push(format.stockLine(p))
+        if (rest.length > shown.length) lines.push(`…et ${rest.length - shown.length} autres`)
+    }
+    return { text: lines.join("\n") }
+}
+
+async function confirmerStock(query: string, value: number): Promise<Reply> {
+    const matches = await findProducts(query)
+    if (!matches.length) return { text: `Aucun produit « ${query} ».` }
+    if (matches.length > 1) return preciser(matches)
+    const p = matches[0]
+    return {
+        text: `Confirmer ?\n${p.name} : ${p.currentStock} → ${value} ${p.unit}`,
+        buttons: confirm(`st:${p.id}:${value}`),
+    }
+}
+
+// ── Ruptures ─────────────────────────────────────────────────────────────────
+
+async function ruptureCommand(rest: string): Promise<Reply> {
+    // /rupture seul → liste de toutes les ruptures.
+    if (!rest) {
+        const ruptures = await getRuptures()
+        if (!ruptures.length) return { text: "Aucune rupture. 🎉" }
+        const lines = ruptures.map((p) => `🔴 ${p.name}`)
+        return { text: `Ruptures (${ruptures.length}) :\n${lines.join("\n")}` }
+    }
+
+    // /rupture fraises → mettre ce produit en rupture.
+    const matches = await findProducts(rest)
+    if (!matches.length) return { text: `Aucun produit « ${rest} ».` }
+    if (matches.length > 1) return preciser(matches)
+    const p = matches[0]
+    return {
+        text: `Mettre en rupture ?\n${p.name} (stock → 0)`,
+        buttons: confirm(`st:${p.id}:0`),
+    }
+}
+
+// ── Prix ─────────────────────────────────────────────────────────────────────
+
+async function prixCommand(rest: string): Promise<Reply> {
+    if (!rest) return { text: "Quel produit ?\nEx : /prix fraises  (ou  /prix fraises 3,90)" }
+
+    const set = splitProductAndValue(rest)
+    if (set) {
+        if (set.value < 0) return { text: "Le prix doit être positif." }
+        const matches = await findProducts(set.query)
+        if (!matches.length) return { text: `Aucun produit « ${set.query} ».` }
+        if (matches.length > 1) return preciser(matches)
+        const p = matches[0]
+        return {
+            text: `Confirmer le prix ?\n${p.name} : ${format.euros(p.price)} → ${format.euros(set.value)} /${p.unit}`,
+            buttons: confirm(`pr:${p.id}:${set.value}`),
+        }
+    }
+
+    // /prix fraises → voir le prix.
+    const matches = await findProducts(rest)
+    if (!matches.length) return { text: `Aucun produit « ${rest} ».` }
+    return { text: matches.map((p) => format.productDetail(p)).join("\n") }
+}
+
+// ── Commandes ────────────────────────────────────────────────────────────────
 
 async function commandesDuJour(): Promise<Reply> {
     const orders = await getTodaysOrders()
@@ -132,59 +233,24 @@ async function commandesDuJour(): Promise<Reply> {
 
 async function chiffreDuJour(): Promise<Reply> {
     const { count, total } = await getDayRevenue()
-    return {
-        text: `💶 Aujourd'hui : ${format.euros(total)} sur ${count} commande(s).`,
-    }
+    return { text: `💶 Aujourd'hui : ${format.euros(total)} sur ${count} commande(s).` }
 }
 
 async function demanderStatut(ref: string, status: string, verb: string): Promise<Reply> {
-    if (!ref) return { text: "Précise le code de la commande. Ex : /remis A1B2C3" }
+    if (!ref) return { text: "Précise le code. Ex : /remis A1B2C3" }
     const order = await findOrder(ref)
     if (!order) return { text: `Commande introuvable : « ${ref} ».` }
     return {
         text: `Confirmer : ${verb} ?\n\n${format.order(order)}`,
-        buttons: [[{ text: "✅ Confirmer", data: `os:${order.id}:${status}` }, CANCEL]],
+        buttons: confirm(`os:${order.id}:${status}`),
     }
 }
 
-async function demanderStock(rest: string): Promise<Reply> {
-    const parsed = splitProductAndValue(rest)
-    if (!parsed) return { text: "Format : /stock <produit> <nombre>. Ex : /stock fraises 12" }
-    const matches = await findProducts(parsed.query)
-    if (!matches.length) return { text: `Aucun produit « ${parsed.query} ».` }
-    if (matches.length > 1) return ambiguous(matches)
-    const p = matches[0]
-    return {
-        text: `Confirmer le nouveau stock ?\n\n${p.name} : ${p.currentStock} → ${parsed.value} ${p.unit}`,
-        buttons: [[{ text: "✅ Confirmer", data: `st:${p.id}:${parsed.value}` }, CANCEL]],
-    }
-}
+// ── Aide au choix quand plusieurs produits correspondent (uniquement en modif) ──
 
-async function demanderRupture(rest: string): Promise<Reply> {
-    const query = rest.trim()
-    if (!query) return { text: "Format : /rupture <produit>. Ex : /rupture cerises" }
-    const matches = await findProducts(query)
-    if (!matches.length) return { text: `Aucun produit « ${query} ».` }
-    if (matches.length > 1) return ambiguous(matches)
-    const p = matches[0]
-    return {
-        text: `Confirmer la mise en rupture ?\n\n${p.name} — stock remis à 0`,
-        buttons: [[{ text: "✅ Confirmer", data: `st:${p.id}:0` }, CANCEL]],
-    }
-}
-
-async function demanderPrix(rest: string): Promise<Reply> {
-    const parsed = splitProductAndValue(rest)
-    if (!parsed) return { text: "Format : /prix <produit> <montant>. Ex : /prix tomates 3,90" }
-    if (parsed.value < 0) return { text: "Le prix doit être positif." }
-    const matches = await findProducts(parsed.query)
-    if (!matches.length) return { text: `Aucun produit « ${parsed.query} ».` }
-    if (matches.length > 1) return ambiguous(matches)
-    const p = matches[0]
-    return {
-        text: `Confirmer le nouveau prix ?\n\n${p.name} : ${format.euros(p.price)} → ${format.euros(parsed.value)} /${p.unit}`,
-        buttons: [[{ text: "✅ Confirmer", data: `pr:${p.id}:${parsed.value}` }, CANCEL]],
-    }
+function preciser(matches: ProductMatch[]): Reply {
+    const lines = matches.map((p) => `• ${format.stockLine(p)}`)
+    return { text: `Plusieurs produits, précise le nom :\n${lines.join("\n")}` }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,12 +266,12 @@ export async function handleCallback(data: string): Promise<Reply> {
         case "st": {
             const p = await setStock(id, Number(value))
             if (!p) return { text: "Produit introuvable, rien modifié." }
-            return { text: `✅ Stock mis à jour.\n${format.product(p)}` }
+            return { text: `✅ ${format.productDetail(p)}` }
         }
         case "pr": {
             const p = await setPrice(id, Number(value))
             if (!p) return { text: "Produit introuvable ou prix invalide, rien modifié." }
-            return { text: `✅ Prix mis à jour.\n${format.product(p)}` }
+            return { text: `✅ ${format.productDetail(p)}` }
         }
         case "os": {
             const o = await setOrderStatus(id, value)

@@ -57,6 +57,12 @@ function euros(n: number): string {
     return n.toFixed(2).replace(".", ",") + " €"
 }
 
+/** Quantité lisible : « 12 kg », « 2,5 kg » (pas de décimales inutiles). */
+function qty(n: number, unit: string): string {
+    const v = Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",")
+    return `${v} ${unit}`
+}
+
 /** Libellé lisible d'un statut de commande. */
 const STATUS_LABEL: Record<string, string> = {
     pending: "en attente",
@@ -78,7 +84,19 @@ export type ProductMatch = {
     unit: string
     currentStock: number
     inStock: boolean
+    minimumStock: number
 }
+
+/** Champs chargés pour tout produit manipulé par le bot. */
+const PRODUCT_SELECT = {
+    id: true,
+    name: true,
+    price: true,
+    unit: true,
+    currentStock: true,
+    inStock: true,
+    minimumStock: true,
+} as const
 
 /**
  * Recherche de produits par nom (insensible à la casse, correspondance partielle).
@@ -90,17 +108,48 @@ export async function findProducts(query: string): Promise<ProductMatch[]> {
     if (!q) return []
     const products = await prisma.product.findMany({
         where: { name: { contains: q, mode: "insensitive" } },
-        select: { id: true, name: true, price: true, unit: true, currentStock: true, inStock: true },
+        select: PRODUCT_SELECT,
         orderBy: { name: "asc" },
-        take: 10,
+        take: 15,
     })
     return products
 }
 
 export async function getProduct(id: string): Promise<ProductMatch | null> {
-    return prisma.product.findUnique({
-        where: { id },
-        select: { id: true, name: true, price: true, unit: true, currentStock: true, inStock: true },
+    return prisma.product.findUnique({ where: { id }, select: PRODUCT_SELECT })
+}
+
+export type StockOverview = {
+    /** Rupture (stock ≤ 0) puis stock bas (≤ seuil) : la liste de courses du commerçant. */
+    toRestock: ProductMatch[]
+    /** Le reste, en dessous. */
+    rest: ProductMatch[]
+}
+
+/**
+ * Vue d'ensemble des stocks, triée pour l'usage réel : ce qui manque ou va manquer d'abord
+ * (le commerçant est souvent chez le fournisseur), le reste ensuite.
+ */
+export async function getStockOverview(): Promise<StockOverview> {
+    const products = await prisma.product.findMany({
+        select: PRODUCT_SELECT,
+        orderBy: { currentStock: "asc" }, // les plus bas remontent naturellement
+    })
+    const toRestock: ProductMatch[] = []
+    const rest: ProductMatch[] = []
+    for (const p of products) {
+        if (p.currentStock <= p.minimumStock) toRestock.push(p)
+        else rest.push(p)
+    }
+    return { toRestock, rest }
+}
+
+/** Tous les produits en rupture (stock ≤ 0). */
+export async function getRuptures(): Promise<ProductMatch[]> {
+    return prisma.product.findMany({
+        where: { currentStock: { lte: 0 } },
+        select: PRODUCT_SELECT,
+        orderBy: { name: "asc" },
     })
 }
 
@@ -275,9 +324,18 @@ export const format = {
     euros,
     orderNumber,
 
-    product(p: ProductMatch): string {
-        const stockLabel = p.inStock ? `${p.currentStock} ${p.unit}` : "RUPTURE"
-        return `${p.name} — ${euros(p.price)}/${p.unit} — stock : ${stockLabel}`
+    /** Ligne courte pour un tableau de stocks : pastille selon le niveau. */
+    stockLine(p: ProductMatch): string {
+        if (p.currentStock <= 0) return `🔴 ${p.name} — rupture`
+        if (p.currentStock <= p.minimumStock) return `🟠 ${p.name} — ${qty(p.currentStock, p.unit)}`
+        return `${p.name} — ${qty(p.currentStock, p.unit)}`
+    },
+
+    /** Vue détaillée d'un produit (stock + prix), pour une réponse ciblée. */
+    productDetail(p: ProductMatch): string {
+        const stock = p.currentStock <= 0 ? "rupture" : qty(p.currentStock, p.unit)
+        const dot = p.currentStock <= 0 ? "🔴 " : p.currentStock <= p.minimumStock ? "🟠 " : ""
+        return `${dot}${p.name} — ${stock} — ${euros(p.price)}/${p.unit}`
     },
 
     order(o: OrderSummary): string {
