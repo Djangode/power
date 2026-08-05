@@ -3,6 +3,11 @@
 # dependencies
 /node_modules
 
+# Ce projet est en Yarn Berry (yarn.lock fait foi). On ignore les lockfiles des autres
+# gestionnaires pour empêcher npm/pnpm de s'inviter dans le projet.
+package-lock.json
+pnpm-lock.yaml
+
 # next.js
 /.next/
 /out/
