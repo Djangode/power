@@ -223,9 +223,16 @@ export default function ProductsPage() {
         }
         setImagePreview(url)
       } else {
-        toast.error("Erreur lors de l'upload")
+        // On affiche le message précis renvoyé par le serveur (ex. stockage non configuré,
+        // type de fichier refusé…) au lieu d'un générique — sinon l'admin ne peut pas savoir
+        // ce qui bloque.
+        const data = await res.json().catch(() => null)
+        toast.error(data?.error || `Erreur lors de l'upload (${res.status})`)
       }
-    } catch (error) { console.error("Upload error:", error) }
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast.error("Upload impossible (réseau). Réessaie.")
+    }
     finally { setUploading(false) }
   }
 
