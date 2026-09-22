@@ -6,7 +6,6 @@ import { cartItemUnitPrice, collectIngredientIds, deliveryFee as computeDelivery
 import { parseDeliveryDate } from "@/lib/utils"
 import { getDeliveryConfig, getOrderNotificationEmail } from "@/app/actions/content"
 import { nextInvoiceNumber } from "@/lib/invoice"
-import { sendNewOrderToTelegram } from "@/lib/telegram"
 import { describeSelection } from "@/lib/composition-pricing"
 import crypto from "crypto"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
@@ -309,7 +308,6 @@ export async function POST(req: NextRequest) {
         }
 
         const orderNumber = `CMD-${order.id.slice(-6).toUpperCase()}`
-        const paymentLabel = paymentMethod === "cash" ? "Espèces à la réception" : "Carte bleue à la réception"
         // Chaque ligne porte son unité et, pour une composition, le détail de la
         // configuration : c'est la fiche de préparation du commerçant.
         const notifiedItems = orderItems.map((it) => {
@@ -332,28 +330,6 @@ export async function POST(req: NextRequest) {
                     : null,
             }
         })
-
-        // Notification Telegram — arrive sur le téléphone en quelques secondes, là où l'email
-        // peut traîner. Non bloquante, comme toutes les notifications ici.
-        try {
-            await sendNewOrderToTelegram({
-                orderNumber,
-                customerName: `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Client",
-                customerPhone: order.phone,
-                total: order.total,
-                deliveryMethod: order.deliveryMethod,
-                deliveryDate: order.deliveryDate,
-                deliverySlot: order.deliverySlot,
-                pickupCode: order.pickupCode,
-                address: isDelivery
-                    ? { line: order.deliveryAddress, postalCode: order.deliveryPostalCode, city: order.deliveryCity }
-                    : null,
-                paymentLabel,
-                items: notifiedItems,
-            })
-        } catch (telegramError) {
-            console.error("⚠️ Notification Telegram échouée:", telegramError)
-        }
 
         // Notification à la société (non bloquant : n'échoue jamais la commande)
         try {
