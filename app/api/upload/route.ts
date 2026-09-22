@@ -90,7 +90,7 @@ export async function POST(req: Request) {
             .webp({ quality: 80 })
             .toBuffer()
 
-        const filename = `${Date.now()}-${crypto.randomUUID()}.webp`
+    const filename = `${Date.now()}-${crypto.randomUUID().replaceAll("-", "")}.webp`
         const url = await storeImage(compressed, filename)
 
         return NextResponse.json({ url })
