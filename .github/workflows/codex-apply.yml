@@ -1,0 +1,29 @@
+name: Apply verified Codex patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/codex-secure.patch
+      - .github/workflows/codex-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor == 'ibaricyril2111-cell'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch and remove bootstrap files
+        run: |
+          git config user.name "Power Codex"
+          git config user.email "ibaricyril2111@gmail.com"
+          git am .github/codex-secure.patch
+          git rm .github/codex-secure.patch .github/workflows/codex-apply.yml
+          git commit -m "chore: remove temporary Codex bootstrap"
+          git push origin HEAD:main
