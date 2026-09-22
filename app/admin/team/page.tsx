@@ -55,6 +55,8 @@ interface Employee {
   }
 }
 
+type TeamRole = 'cashier' | 'preparation' | 'delivery'
+
 // Les données sont maintenant tirées de la base de données
 
 export default function TeamPage() {
@@ -87,7 +89,7 @@ export default function TeamPage() {
     lastName: string
     email: string
     phone: string
-    role: 'admin' | 'cashier' | 'preparation' | 'delivery'
+    role: TeamRole
     salary: string
     salaryType: 'hourly' | 'monthly'
     hoursPerWeek: string
@@ -257,7 +259,7 @@ export default function TeamPage() {
     }
   }
 
-  const changeEmployeeRole = async (employeeId: string, newRole: Employee['role']) => {
+  const changeEmployeeRole = async (employeeId: string, newRole: TeamRole) => {
     try {
       const res = await fetch("/api/admin/team", {
         method: "PATCH",
@@ -424,7 +426,7 @@ export default function TeamPage() {
                               <UserCheck className="h-3 w-3 mr-1" />
                               Créé
                             </Badge>
-                            <Button
+                            {employee.role !== 'admin' && <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => sendAccountInvitation(employee.id)}
@@ -437,7 +439,7 @@ export default function TeamPage() {
                               ) : (
                                 <><Mail className="h-3 w-3 mr-1" /> Renvoyer l&apos;accès</>
                               )}
-                            </Button>
+                            </Button>}
                           </div>
                         </TableCell>
 
@@ -468,7 +470,7 @@ export default function TeamPage() {
 
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
-                            <Button
+                            {employee.role !== 'admin' && <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
@@ -477,16 +479,16 @@ export default function TeamPage() {
                               }}
                             >
                               <Edit className="h-4 w-4" />
-                            </Button>
+                            </Button>}
 
-                            <Button
+                            {employee.role !== 'admin' && <Button
                               variant="outline"
                               size="sm"
                               onClick={() => toggleEmployeeStatus(employee.id)}
                               className={employee.isActive ? 'text-red-600' : 'text-green-600'}
                             >
                               {employee.isActive ? 'Désactiver' : 'Activer'}
-                            </Button>
+                            </Button>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -547,7 +549,7 @@ export default function TeamPage() {
 
           <div>
             <Label>Rôle</Label>
-            <Select value={newEmployee.role} onValueChange={(value: string) => setNewEmployee({ ...newEmployee, role: value as 'admin' | 'cashier' | 'preparation' | 'delivery' })}>
+            <Select value={newEmployee.role} onValueChange={(value: string) => setNewEmployee({ ...newEmployee, role: value as TeamRole })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -555,7 +557,6 @@ export default function TeamPage() {
                 <SelectItem value="preparation">Préparateur</SelectItem>
                 <SelectItem value="cashier">Caissier</SelectItem>
                 <SelectItem value="delivery">Livreur</SelectItem>
-                <SelectItem value="admin">Administrateur</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -629,10 +630,12 @@ export default function TeamPage() {
 
             <div>
               <Label>Rôle</Label>
-              <Select
+              {selectedEmployee.role === 'admin' ? (
+                <p className="mt-1 rounded-md border bg-muted px-3 py-2 text-sm font-medium">Propriétaire — rôle verrouillé</p>
+              ) : <Select
                 value={selectedEmployee.role}
                 onValueChange={(value: string) =>
-                  changeEmployeeRole(selectedEmployee.id, value as Employee['role'])
+                  changeEmployeeRole(selectedEmployee.id, value as TeamRole)
                 }
               >
                 <SelectTrigger className="mt-1">
@@ -642,9 +645,8 @@ export default function TeamPage() {
                   <SelectItem value="preparation">Préparateur</SelectItem>
                   <SelectItem value="cashier">Caissier</SelectItem>
                   <SelectItem value="delivery">Livreur</SelectItem>
-                  <SelectItem value="admin">Administrateur</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
             </div>
 
             <div>

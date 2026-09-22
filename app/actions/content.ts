@@ -53,18 +53,6 @@ export async function getPartners() {
     }
 }
 
-export async function getSiteSetting(key: string) {
-    try {
-        const setting = await prisma.siteSetting.findUnique({
-            where: { key }
-        })
-        return { success: true, data: setting?.value || null }
-    } catch (error) {
-        console.error(`Error fetching site setting ${key}:`, error)
-        return { success: false, data: null }
-    }
-}
-
 // Liste des clés autorisées pour éviter d'écrire n'importe quoi en base.
 const ALLOWED_SETTING_KEYS = [
     "shop_name",
@@ -90,6 +78,10 @@ const ALLOWED_SETTING_KEYS = [
 type AllowedSettingKey = (typeof ALLOWED_SETTING_KEYS)[number]
 
 export async function getSiteSettings() {
+    const session = await auth()
+    if (session?.user?.role !== "admin") {
+        return { success: false, error: "Non autorisé", data: {} as Record<string, string> }
+    }
     try {
         const settings = await prisma.siteSetting.findMany({
             where: { key: { in: [...ALLOWED_SETTING_KEYS] } }
@@ -254,7 +246,7 @@ export async function getInvoiceSettings(): Promise<InvoiceSettings> {
 export async function getBlogPost(id: string) {
     try {
         const post = await prisma.blogPost.findUnique({
-            where: { id }
+            where: { id, published: true }
         })
         return { success: true, data: post }
     } catch (error) {

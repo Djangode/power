@@ -1,8 +1,9 @@
 import { Resend } from "resend"
 import { formatQuantity } from "@/lib/units"
+import { publicAppUrl } from "@/lib/app-url"
 
 const FROM_EMAIL = "Power Primeur <noreply@powerprimeur.com>"
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+const APP_URL = publicAppUrl()
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY)

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import Stripe from "stripe"
 import { prisma } from "@/lib/db"
+import { publicAppUrl } from "@/lib/app-url"
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
             })
         }
 
-        const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+        const origin = publicAppUrl()
         const portal = await stripe.billingPortal.sessions.create({
             customer: customerId,
             return_url: `${origin}/mon-compte`,

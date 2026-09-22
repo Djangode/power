@@ -4,7 +4,7 @@ import { PrismaNeonHttp } from '@prisma/adapter-neon'
 import bcrypt from 'bcryptjs'
 
 const url = (process.env.DATABASE_URL || '').replace(/&channel_binding=[^&]*/g, '')
-console.log('DB URL:', url.substring(0, 40) + '...')
+if (!url) throw new Error('DATABASE_URL est obligatoire pour exécuter le seed')
 const adapter = new PrismaNeonHttp(url, { fullResults: false })
 const prisma = new PrismaClient({ adapter })
 
@@ -231,8 +231,11 @@ async function main() {
     }
 
     // Compte administrateur (idempotent — ne réinitialise PAS le mot de passe d'un admin existant)
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@powerprimeur.com'
-    const adminPassword = process.env.ADMIN_PASSWORD || 'ChangeMoi123!'
+    const adminEmail = (process.env.ADMIN_EMAIL || process.env.OWNER_EMAIL || 'ibaricyril2111@gmail.com').trim().toLowerCase()
+    const adminPassword = process.env.ADMIN_PASSWORD
+    if (!adminPassword || adminPassword.length < 12) {
+        throw new Error('ADMIN_PASSWORD doit être défini et contenir au moins 12 caractères ; aucun mot de passe admin par défaut n’est autorisé')
+    }
     await prisma.user.upsert({
         where: { email: adminEmail },
         update: { role: 'admin', isActive: true },

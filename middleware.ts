@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import { authConfig } from "@/auth.config"
 import { NextResponse } from "next/server"
+import { isOwnerEmail } from "@/lib/authz"
 
 // Utilise auth.config.ts (léger, Edge-compatible)
 // au lieu de auth.ts (qui importe Prisma/bcrypt → trop lourd pour Edge)
@@ -10,6 +11,7 @@ export default auth((req) => {
   const { pathname } = req.nextUrl
   const isLoggedIn = !!req.auth
   const userRole = req.auth?.user?.role
+  const userEmail = req.auth?.user?.email
   const isDisabled = req.auth?.user?.disabled === true
 
   // ============================================
@@ -34,7 +36,7 @@ export default auth((req) => {
       }
       return NextResponse.redirect(new URL("/connexion", req.url))
     }
-    if (userRole !== "admin") {
+    if (userRole !== "admin" || !isOwnerEmail(userEmail)) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
       }

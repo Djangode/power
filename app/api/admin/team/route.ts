@@ -58,7 +58,9 @@ const createEmployeeSchema = z.object({
     // doublon de compte que l'employé ne pourra pas utiliser.
     email: z.string().email().transform((v) => v.trim().toLowerCase()),
     phone: z.string().optional(),
-    role: z.enum(["admin", "cashier", "preparation", "delivery"]),
+    // Le rôle admin est réservé au propriétaire et ne peut jamais être attribué
+    // depuis l'interface équipe.
+    role: z.enum(["cashier", "preparation", "delivery"]),
     salary: z.number().optional(),
     salaryType: z.enum(["hourly", "monthly"]).optional(),
     hoursPerWeek: z.number().optional(),
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
 const updateEmployeeSchema = z.object({
     userId: z.string().min(1, "userId requis"),
     isActive: z.boolean().optional(),
-    role: z.enum(["admin", "cashier", "preparation", "delivery"]).optional(),
+    role: z.enum(["cashier", "preparation", "delivery"]).optional(),
 })
 
 export async function PATCH(req: NextRequest) {
@@ -162,6 +164,10 @@ export async function PATCH(req: NextRequest) {
         const existing = await prisma.user.findUnique({ where: { id: userId } })
         if (!existing) {
             return NextResponse.json({ error: "Employé introuvable" }, { status: 404 })
+        }
+
+        if (existing.role === "admin") {
+            return NextResponse.json({ error: "Le compte propriétaire ne peut pas être modifié ici" }, { status: 403 })
         }
 
         const data: { isActive?: boolean; role?: string } = {}

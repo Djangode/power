@@ -15,7 +15,9 @@ export async function getAvailableDeliverySlots(
         // pour ne pas rater de créneau à cause d'une largeur de fenêtre nulle.
         const start = new Date(`${startDate}T00:00:00.000Z`)
         const end = new Date(`${endDate}T23:59:59.999Z`)
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        const rangeMs = end.getTime() - start.getTime()
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)
+            || isNaN(start.getTime()) || isNaN(end.getTime()) || rangeMs < 0 || rangeMs > 31 * 24 * 60 * 60 * 1000) {
             return { success: false, data: [] }
         }
 
@@ -53,29 +55,5 @@ export async function getAvailableDeliverySlots(
     } catch (error) {
         console.error("Error fetching delivery slots:", error)
         return { success: false, data: [] }
-    }
-}
-
-export async function reserveDeliverySlot(slotId: string) {
-    try {
-        const slot = await prisma.deliverySlot.findUnique({ where: { id: slotId } })
-
-        if (!slot || !slot.isActive) {
-            return { success: false, error: "Créneau indisponible" }
-        }
-
-        if (slot.currentOrders >= slot.maxOrders) {
-            return { success: false, error: "Ce créneau est complet" }
-        }
-
-        await prisma.deliverySlot.update({
-            where: { id: slotId },
-            data: { currentOrders: { increment: 1 } }
-        })
-
-        return { success: true }
-    } catch (error) {
-        console.error("Error reserving delivery slot:", error)
-        return { success: false, error: "Erreur lors de la réservation" }
     }
 }

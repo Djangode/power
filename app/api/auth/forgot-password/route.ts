@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db"
 import crypto from "crypto"
 import { Resend } from "resend"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
+import { publicAppUrl } from "@/lib/app-url"
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
 export async function POST(req: NextRequest) {
     try {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         })
 
         // Send reset email
-        const resetUrl = `${APP_URL}/mot-de-passe-oublie?token=${token}&uid=${user.id}`
+        const resetUrl = `${publicAppUrl()}/mot-de-passe-oublie?token=${token}&uid=${user.id}`
 
         // Envoi best-effort : une panne Resend ne doit pas renvoyer 500. Sinon la réponse
         // diffère selon que le compte existe (500) ou non (200), ce qui rouvre la fuite

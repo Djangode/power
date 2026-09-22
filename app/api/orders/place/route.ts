@@ -8,9 +8,11 @@ import { getDeliveryConfig, getOrderNotificationEmail } from "@/app/actions/cont
 import { nextInvoiceNumber } from "@/lib/invoice"
 import { sendNewOrderToTelegram } from "@/lib/telegram"
 import { describeSelection } from "@/lib/composition-pricing"
+import crypto from "crypto"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 function generatePickupCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase()
+    return crypto.randomBytes(4).toString("hex").toUpperCase()
 }
 
 /**
@@ -23,6 +25,9 @@ export async function POST(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
         }
+
+        const rl = await rateLimit(`order:${session.user.id}:${clientIp(req)}`, 10, 60 * 60_000)
+        if (!rl.ok) return NextResponse.json({ error: "Trop de commandes rapprochées. Réessayez plus tard." }, { status: 429 })
 
         const body = await req.json().catch(() => ({}))
         const {

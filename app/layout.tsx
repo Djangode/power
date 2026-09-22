@@ -3,6 +3,7 @@ import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import GoogleAnalytics from '@/components/providers/google-analytics'
 import CookieConsent from '@/components/cookie-consent'
+import PwaRegister from '@/components/pwa-register'
 import { Toaster } from "sonner"
 
 export const metadata: Metadata = {
@@ -21,6 +22,25 @@ export const metadata: Metadata = {
     locale: 'fr_FR',
     type: 'website',
   },
+  alternates: {
+    canonical: '/',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Power',
+  },
+  icons: {
+    icon: '/logo-power-mark.png',
+    apple: '/logo-power-mark.png',
+  },
+}
+
+export const viewport = {
+  themeColor: '#f97316',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 const jsonLd = {
@@ -57,6 +77,7 @@ export default function RootLayout({
     <html lang="fr" className="dark">
       <body>
         <SessionProvider>
+          <PwaRegister />
           <GoogleAnalytics />
           <script
             type="application/ld+json"

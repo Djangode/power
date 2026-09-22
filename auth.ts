@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { rateLimit } from "@/lib/rate-limit"
+import { effectiveRole } from "@/lib/authz"
 
 declare module "next-auth" {
     interface User {
@@ -68,7 +69,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             id: user.id,
                             email: user.email,
                             name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-                            role: user.role
+                            role: effectiveRole(user.role, user.email)
                         }
                     }
                 }
@@ -115,7 +116,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const dbUser = await prisma.user.findUnique({ where: { email: user.email } })
                 if (dbUser) {
                     token.sub = dbUser.id
-                    token.role = dbUser.role
+                    token.role = effectiveRole(dbUser.role, dbUser.email)
                     token.disabled = !dbUser.isActive
                     token.checkedAt = Date.now()
                 }
@@ -142,7 +143,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             token.role = undefined
                             token.disabled = true
                         } else {
-                            token.role = dbUser.role
+                            token.role = effectiveRole(dbUser.role, dbUser.email)
                             token.disabled = false
                         }
                     } catch (error) {

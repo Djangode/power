@@ -5,20 +5,36 @@ import { prisma } from "@/lib/db"
 import { z } from "zod"
 
 const updateProfileSchema = z.object({
-    firstName: z.string().min(1).optional(),
-    lastName: z.string().min(1).optional(),
-    phone: z.string().optional(),
-    address: z.string().optional(),
-    city: z.string().optional(),
-    postalCode: z.string().optional(),
+    firstName: z.string().trim().min(1).max(80).optional(),
+    lastName: z.string().trim().min(1).max(80).optional(),
+    phone: z.string().trim().max(30).optional(),
+    address: z.string().trim().max(240).optional(),
+    city: z.string().trim().max(100).optional(),
+    postalCode: z.string().trim().max(20).optional(),
     clientType: z.string().optional(),
     billingType: z.string().optional(),
-    country: z.string().optional(),
-    companyName: z.string().optional(),
-    siret: z.string().optional(),
+    country: z.string().trim().max(80).optional(),
+    companyName: z.string().trim().max(160).optional(),
+    siret: z.string().trim().max(20).optional(),
 })
 
 const ACCOUNT_TYPES = ["particulier", "professionnel"]
+
+const publicProfileSelect = {
+    id: true,
+    email: true,
+    firstName: true,
+    lastName: true,
+    phone: true,
+    address: true,
+    city: true,
+    postalCode: true,
+    clientType: true,
+    billingType: true,
+    country: true,
+    companyName: true,
+    siret: true,
+} as const
 
 export async function getUserProfile() {
     try {
@@ -27,16 +43,9 @@ export async function getUserProfile() {
 
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
-            include: {
-                orders: {
-                    include: {
-                        items: {
-                            include: { product: true }
-                        }
-                    },
-                    orderBy: { createdAt: 'desc' }
-                }
-            }
+            // Liste blanche : ne jamais sérialiser password, rôle, salaire ou identifiants
+            // Stripe vers le navigateur du client.
+            select: publicProfileSelect,
         })
 
         if (!user) return { success: false, error: "Utilisateur non trouvé" }
@@ -72,7 +81,8 @@ export async function updateUserProfile(data: z.infer<typeof updateProfileSchema
                 country: parsed.data.country || undefined,
                 companyName: parsed.data.companyName || undefined,
                 siret: parsed.data.siret || undefined,
-            }
+            },
+            select: publicProfileSelect,
         })
         return { success: true, data: updatedUser }
     } catch (error) {
@@ -88,11 +98,20 @@ export async function getUserOrders() {
 
         const orders = await prisma.order.findMany({
             where: { userId: session.user.id },
-            include: {
+            select: {
+                id: true,
+                createdAt: true,
+                status: true,
+                total: true,
+                deliveryMethod: true,
+                invoiceNumber: true,
                 items: {
-                    include: {
-                        product: true,
-                        composition: true,
+                    select: {
+                        id: true,
+                        quantity: true,
+                        priceAtPurchase: true,
+                        product: { select: { name: true, unit: true } },
+                        composition: { select: { name: true } },
                     }
                 }
             },

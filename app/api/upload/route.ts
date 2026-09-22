@@ -90,7 +90,7 @@ export async function POST(req: Request) {
             .webp({ quality: 80 })
             .toBuffer()
 
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
+        const filename = `${Date.now()}-${crypto.randomUUID()}.webp`
         const url = await storeImage(compressed, filename)
 
         return NextResponse.json({ url })
@@ -98,7 +98,9 @@ export async function POST(req: Request) {
         console.error("Erreur upload:", error)
         // Le message porte l'action corrective (ex. store Blob absent) : sans lui, l'admin
         // ne voit qu'un « Erreur upload » opaque et ne peut rien débloquer seul.
-        const message = error instanceof Error ? error.message : "Erreur upload"
+        const message = process.env.NODE_ENV === "production"
+            ? "L’image n’a pas pu être enregistrée"
+            : error instanceof Error ? error.message : "Erreur upload"
         return NextResponse.json({ error: message }, { status: 500 })
     }
 }

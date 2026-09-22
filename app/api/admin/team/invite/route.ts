@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Employé introuvable" }, { status: 404 })
         }
 
+        if (employee.role === "admin") {
+            return NextResponse.json({ error: "Le mot de passe propriétaire ne peut pas être réinitialisé depuis l'équipe" }, { status: 403 })
+        }
+
         // Générer un mot de passe temporaire
         const tempPassword = crypto.randomBytes(4).toString("hex") + "A1!" // Ex: "a3f2b1c8A1!"
 

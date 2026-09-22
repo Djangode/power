@@ -4,6 +4,9 @@ import Stripe from "stripe"
 import { prisma } from "@/lib/db"
 import { cartItemUnitPrice, collectIngredientIds } from "@/lib/pricing"
 import { parseDeliveryDate } from "@/lib/utils"
+import { publicAppUrl } from "@/lib/app-url"
+import crypto from "crypto"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -12,7 +15,7 @@ function getStripe() {
 }
 
 function generatePickupCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase()
+    return crypto.randomBytes(4).toString("hex").toUpperCase()
 }
 
 export async function POST(req: NextRequest) {
@@ -22,6 +25,9 @@ export async function POST(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
+
+        const rl = await rateLimit(`checkout:${session.user.id}:${clientIp(req)}`, 10, 15 * 60_000)
+        if (!rl.ok) return NextResponse.json({ error: "Trop de tentatives de paiement. Réessayez plus tard." }, { status: 429 })
 
         const body = await req.json().catch(() => ({}))
         const { deliveryMethod, deliveryDate, deliveryTime, deliverySlotId, deliveryAddress, deliveryCity, deliveryPostalCode, phone, promoCode } = body
@@ -195,7 +201,7 @@ export async function POST(req: NextRequest) {
             })
         }
 
-        const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+        const origin = publicAppUrl()
 
         // Créer un coupon Stripe si réduction appliquée
         let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined

@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
+import { isOwnerEmail } from "@/lib/authz"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,7 +25,7 @@ export default async function AdminLayout({
     redirect("/")
   }
 
-  if (session.user.role !== "admin") {
+  if (session.user.role !== "admin" || !isOwnerEmail(session.user.email)) {
     redirect("/")
   }
 

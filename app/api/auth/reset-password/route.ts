@@ -2,18 +2,22 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
     try {
-        const { token, uid, password } = await req.json()
+        const { token, uid, password } = await req.json().catch(() => ({}))
 
-        if (!token || !uid || !password) {
+        if (typeof token !== "string" || typeof uid !== "string" || typeof password !== "string" || !token || !uid || !password) {
             return NextResponse.json({ error: "Données manquantes" }, { status: 400 })
         }
 
-        if (password.length < 8) {
-            return NextResponse.json({ error: "Le mot de passe doit faire au moins 8 caractères" }, { status: 400 })
+        if (password.length < 8 || password.length > 72) {
+            return NextResponse.json({ error: "Le mot de passe doit contenir entre 8 et 72 caractères" }, { status: 400 })
         }
+
+        const rl = await rateLimit(`reset:${clientIp(req)}:${uid.slice(0, 64)}`, 10, 15 * 60_000)
+        if (!rl.ok) return NextResponse.json({ error: "Trop de tentatives. Réessayez plus tard." }, { status: 429 })
 
         // Verify token
         const setting = await prisma.siteSetting.findUnique({
@@ -34,7 +38,11 @@ export async function POST(req: NextRequest) {
 
         // On compare le HASH du token reçu à celui stocké (le clair n'est jamais en base).
         const incomingHash = crypto.createHash("sha256").update(token).digest("hex")
-        if (data.token !== incomingHash) {
+        const stored = typeof data.token === "string" && /^[a-f0-9]{64}$/i.test(data.token)
+            ? Buffer.from(data.token, "hex")
+            : null
+        const incoming = Buffer.from(incomingHash, "hex")
+        if (!stored || stored.length !== incoming.length || !crypto.timingSafeEqual(stored, incoming)) {
             return NextResponse.json({ error: "Lien invalide" }, { status: 400 })
         }
 
